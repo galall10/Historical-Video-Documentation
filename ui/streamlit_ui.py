@@ -380,6 +380,18 @@ def render_shots_tab(final_state):
                 ai_prompt = shot.get('ai_generation_prompt', 'N/A')
                 st.code(ai_prompt, language=None)
 
+                # Video generation button
+                generate_btn_key = f"generate_video_{shot_num}"
+                if st.button(f"🎞️ Generate Video for Shot {shot_num}", key=generate_btn_key):
+                    with st.spinner("🎬 Generating video with Veo 3..."):
+                        from utils.video_generator import generate_video_with_veo
+                        try:
+                            video_path = generate_video_with_veo(ai_prompt, f"shot_{shot_num}.mp4")
+                            st.video(video_path)
+                            st.success(f"✅ Video generated successfully for Shot {shot_num}")
+                        except Exception as e:
+                            st.error(f"❌ Failed to generate video: {str(e)}")
+
                 # Show error if present
                 if 'error' in shot:
                     st.error(f"⚠️ {shot['error']}")

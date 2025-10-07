@@ -1,0 +1,6 @@
+streamlit
+moviepy
+langchain
+langchain-openai
+langchain-google-genai 
+huggingface_hub 

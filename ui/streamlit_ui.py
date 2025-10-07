@@ -3,6 +3,7 @@ Streamlit UI interface for Historical Building Video Story Generator
 """
 import streamlit as st
 import json
+import os
 from PIL import Image
 from agents.workflow import create_workflow
 from utils.image_utils import image_to_base64
@@ -59,6 +60,7 @@ def create_interface():
     - Detailed historical analysis
     - Compelling narrative story  
     - Professional video shot breakdown with AI generation prompts
+    - **AI-generated video clips** 🎬
     """)
 
     # Sidebar
@@ -107,6 +109,15 @@ def render_sidebar():
                 st.error("❌ OpenRouter API Key not found")
                 st.info("Please set OPENROUTER_API_KEY in your .env file")
 
+        # Check HF_TOKEN for video generation
+        st.divider()
+        st.subheader("🎬 Video Generation")
+        if os.environ.get("HF_TOKEN"):
+            st.success("✅ HF_TOKEN configured")
+        else:
+            st.error("❌ HF_TOKEN not found")
+            st.info("Set HF_TOKEN in .env for video generation")
+
         st.divider()
 
         st.subheader("Model Settings")
@@ -115,6 +126,7 @@ def render_sidebar():
         else:
             st.info(f"**Model:** {config.OPENROUTER_MODEL}")
         st.info(f"**Max Iterations:** {config.MAX_ITERATIONS}")
+        st.info(f"**Video Model:** Wan-AI/Wan2.2-TI2V-5B")
 
         st.divider()
 
@@ -122,10 +134,10 @@ def render_sidebar():
         st.markdown("""
         1. Select API provider (Gemini or OpenRouter)
         2. Upload an image of a historical building
-        3. Click 'Generate Video Shots'
+        3. Click 'Generate Video Story'
         4. Review the analysis and story
         5. Examine detailed shot breakdown
-        6. Use AI prompts for video generation
+        6. Watch the AI-generated video! 🎬
         """)
 
         return api_provider
@@ -160,7 +172,7 @@ def render_generation_controls(uploaded_file, refinement_input, api_provider):
     st.header("🎬 Generation Controls")
 
     if uploaded_file is not None:
-        if st.button("🚀 Generate Video Shots", type="primary", use_container_width=True):
+        if st.button("🚀 Generate Video Story", type="primary", use_container_width=True):
             process_generation(uploaded_file, refinement_input, api_provider)
     else:
         st.info("👆 Please upload an image to begin")
@@ -174,6 +186,10 @@ def process_generation(uploaded_file, refinement_input, api_provider):
     elif api_provider == "openrouter" and not config.OPENROUTER_API_KEY:
         st.error("Please configure OPENROUTER_API_KEY in your .env file")
         return
+
+    # Check HF_TOKEN
+    if not os.environ.get("HF_TOKEN"):
+        st.warning("⚠️ HF_TOKEN not configured. Video generation will be skipped.")
 
     # Reset state
     st.session_state.processing_complete = False
@@ -203,6 +219,8 @@ def process_generation(uploaded_file, refinement_input, api_provider):
             "refinement_notes": refinement_notes,
             "iteration_count": 0,
             "final_output": "",
+            "final_video_path": "",
+            "video_clips": [],
             "messages": [],
             "progress_log": ""
         }
@@ -215,6 +233,15 @@ def process_generation(uploaded_file, refinement_input, api_provider):
 
         status_text.info("🔍 Analyzing image...")
         progress_bar.progress(25)
+
+        status_text.info("📖 Creating story...")
+        progress_bar.progress(40)
+
+        status_text.info("🎬 Generating shots...")
+        progress_bar.progress(60)
+
+        status_text.info("🎥 Generating video (this may take several minutes)...")
+        progress_bar.progress(75)
 
         # Run the workflow
         final_state = workflow.invoke(initial_state)
@@ -247,7 +274,8 @@ def render_results():
     final_state = st.session_state.final_state
 
     # Tabs for different outputs
-    tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
+    tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
+        "🎬 Final Video",
         "📋 Summary",
         "🏛️ Building Analysis",
         "📖 Historical Story",
@@ -257,22 +285,72 @@ def render_results():
     ])
 
     with tab1:
-        render_summary_tab(final_state)
+        render_video_tab(final_state)
 
     with tab2:
-        render_analysis_tab(final_state)
+        render_summary_tab(final_state)
 
     with tab3:
-        render_story_tab(final_state)
+        render_analysis_tab(final_state)
 
     with tab4:
-        render_shots_tab(final_state)
+        render_story_tab(final_state)
 
     with tab5:
-        render_log_tab(final_state)
+        render_shots_tab(final_state)
 
     with tab6:
+        render_log_tab(final_state)
+
+    with tab7:
         render_debug_tab(final_state)
+
+def render_video_tab(final_state):
+    """Render the final video tab"""
+    st.subheader("🎬 Generated Video")
+
+    video_path = final_state.get("final_video_path", "")
+    video_clips = final_state.get("video_clips", [])
+
+    if video_path and os.path.exists(video_path):
+        st.success("✅ Video generated successfully!")
+
+        # Display the video
+        with open(video_path, 'rb') as video_file:
+            video_bytes = video_file.read()
+            st.video(video_bytes)
+
+        # Download button
+        st.download_button(
+            "📥 Download Final Video",
+            video_bytes,
+            file_name="historical_building_video.mp4",
+            mime="video/mp4"
+        )
+
+        # Video info
+        st.info(f"📊 Video file: {video_path}")
+        st.info(f"📊 File size: {len(video_bytes) / (1024*1024):.2f} MB")
+
+    elif video_clips:
+        st.warning("⚠️ Individual clips generated but concatenation failed")
+        st.info("You can download individual clips below:")
+
+        for clip_path in video_clips:
+            if os.path.exists(clip_path):
+                clip_name = os.path.basename(clip_path)
+                with open(clip_path, 'rb') as clip_file:
+                    clip_bytes = clip_file.read()
+                    st.download_button(
+                        f"📥 Download {clip_name}",
+                        clip_bytes,
+                        file_name=clip_name,
+                        mime="video/mp4",
+                        key=clip_name
+                    )
+    else:
+        st.warning("⚠️ No video was generated")
+        st.info("This could be due to:\n- Missing HF_TOKEN\n- Video generation errors\n- Check the Progress Log for details")
 
 def render_summary_tab(final_state):
     """Render the summary tab"""
@@ -281,7 +359,7 @@ def render_summary_tab(final_state):
     try:
         final_output = json.loads(final_state.get("final_output", "{}"))
 
-        col_a, col_b, col_c = st.columns(3)
+        col_a, col_b, col_c, col_d = st.columns(4)
         with col_a:
             st.metric("Total Shots", final_output.get("total_shots", 0))
         with col_b:
@@ -289,12 +367,14 @@ def render_summary_tab(final_state):
         with col_c:
             status = final_output.get("status", "unknown").upper()
             st.metric("Status", status)
+        with col_d:
+            video_status = "✅ YES" if final_output.get("final_video_path") else "❌ NO"
+            st.metric("Video Generated", video_status)
 
         if final_output.get("total_shots", 0) > 0:
             st.success("✅ All processing stages completed successfully!")
         else:
             st.warning("⚠️ Processing completed but no shots were generated")
-            st.info("Check the Debug Info tab to see what the LLM returned")
 
     except json.JSONDecodeError:
         st.warning("Could not parse final output JSON")
@@ -348,10 +428,6 @@ def render_shots_tab(final_state):
     if shots:
         st.info(f"Total shots: {len(shots)}")
 
-        # Check if this is an error shot
-        if len(shots) == 1 and shots[0].get("error"):
-            st.error("⚠️ Shot generation failed. Check the Debug Info tab for details.")
-
         # Display each shot
         for i, shot in enumerate(shots):
             shot_num = shot.get('shot_number', i + 1)
@@ -360,7 +436,7 @@ def render_shots_tab(final_state):
 
             with st.expander(
                 f"🎬 Shot {shot_num} - {shot_type} ({duration}s)",
-                expanded=(i == 0)  # Expand first shot by default
+                expanded=(i == 0)
             ):
                 col_left, col_right = st.columns([2, 1])
 
@@ -380,13 +456,6 @@ def render_shots_tab(final_state):
                 ai_prompt = shot.get('ai_generation_prompt', 'N/A')
                 st.code(ai_prompt, language=None)
 
-                # Show error if present
-                if 'error' in shot:
-                    st.error(f"⚠️ {shot['error']}")
-                    if 'raw_response' in shot:
-                        with st.expander("View Raw LLM Response"):
-                            st.code(shot['raw_response'])
-
         # Download shots as JSON
         shots_json = json.dumps(shots, indent=2)
         st.download_button(
@@ -397,14 +466,12 @@ def render_shots_tab(final_state):
         )
     else:
         st.warning("No shots were generated")
-        st.info("💡 Tip: Check the Debug Info tab to see what happened during shot creation")
 
 def render_log_tab(final_state):
     """Render the progress log tab"""
     st.subheader("📝 Processing Log")
     progress_log = final_state.get("progress_log", "No log available")
-    st.text_area("Log Output", progress_log, height=300, key="log_output", disabled=True)
-
+    st.text_area("Log Output", progress_log, height=400, key="log_output", disabled=True)
 
 def render_debug_tab(final_state):
     """Render debug information"""
@@ -413,78 +480,35 @@ def render_debug_tab(final_state):
     st.markdown("### Messages")
     messages = final_state.get("messages", [])
     for msg in messages:
-        if "Error" in msg:
+        if "Error" in msg or "ERROR" in msg:
             st.error(f"• {msg}")
         else:
             st.success(f"• {msg}")
 
     st.divider()
 
-    # Check if we have debug responses
-    raw_response = final_state.get("_debug_raw_response", "")
-    cleaned_response = final_state.get("_debug_cleaned_response", "")
-
-    if raw_response or cleaned_response:
-        st.markdown("### 🔍 LLM Response Analysis")
-
-        col1, col2 = st.columns(2)
-
-        with col1:
-            st.markdown("**Raw LLM Response (first 2000 chars):**")
-            if raw_response:
-                st.code(raw_response, language=None)
-
-                # Analysis
-                st.markdown("**Analysis:**")
-                if raw_response.strip().startswith("```"):
-                    st.warning("⚠️ Response starts with markdown code block")
-                elif raw_response.strip().startswith("{"):
-                    st.success("✓ Response starts with JSON")
-                elif raw_response.strip().startswith("\n"):
-                    st.error("⚠️ Response starts with newline(s)")
-                else:
-                    st.info(f"Response starts with: {raw_response[:50]}")
-            else:
-                st.info("No raw response saved")
-
-        with col2:
-            st.markdown("**Cleaned Response (first 2000 chars):**")
-            if cleaned_response:
-                st.code(cleaned_response, language=None)
-
-                # Validation
-                st.markdown("**Validation:**")
-                try:
-                    json.loads(cleaned_response)
-                    st.success("✓ Valid JSON after cleaning")
-                except json.JSONDecodeError as e:
-                    st.error(f"✗ Still invalid: {e.msg} at position {e.pos}")
-            else:
-                st.info("No cleaned response saved")
-    else:
-        st.warning("No debug response data found. The error occurred before debug data could be saved.")
-
-    st.divider()
-
     st.markdown("### State Keys")
     st.json(list(final_state.keys()))
 
-    st.markdown("### Shots Description")
-    shots = final_state.get("shots_description", [])
-    if shots:
-        st.json(shots)
+    st.markdown("### Video Generation Status")
+    col1, col2 = st.columns(2)
+    with col1:
+        video_path = final_state.get("final_video_path", "")
+        if video_path:
+            st.success(f"✅ Video Path: {video_path}")
+            st.info(f"Exists: {os.path.exists(video_path)}")
+        else:
+            st.warning("❌ No video path in state")
 
-        # Check for error shots
-        if len(shots) > 0 and shots[0].get("error"):
-            st.error("Shots array contains error information")
-            if "raw_response" in shots[0]:
-                st.markdown("**Raw Response from Error Shot:**")
-                st.code(shots[0]["raw_response"], language=None)
-            if "cleaned_response" in shots[0]:
-                st.markdown("**Cleaned Response from Error Shot:**")
-                st.code(shots[0]["cleaned_response"], language=None)
-    else:
-        st.warning("No shots in state")
+    with col2:
+        video_clips = final_state.get("video_clips", [])
+        if video_clips:
+            st.info(f"Individual clips: {len(video_clips)}")
+            for clip in video_clips:
+                exists = "✅" if os.path.exists(clip) else "❌"
+                st.text(f"{exists} {clip}")
+        else:
+            st.info("No individual clips")
 
     st.divider()
 
@@ -506,5 +530,6 @@ def render_footer():
     st.markdown("""
         <div style='text-align: center; color: #666; padding: 20px;'>
             <p>🏛️ Historical Building Video Story Generator | Powered by LangGraph & AI</p>
+            <p style='font-size: 0.8em;'>Video Generation: Hugging Face Replicate (Wan-AI/Wan2.2-TI2V-5B)</p>
         </div>
     """, unsafe_allow_html=True)

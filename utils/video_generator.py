@@ -1,53 +1,48 @@
-"""
-Video generation utility using the free Wan2.1 model hosted on Hugging Face.
-No API key is needed.
-"""
-
-from gradio_client import Client
-import time
+import os
 import requests
+from http import HTTPStatus
+from dashscope import VideoSynthesis
+import dashscope
 
-def generate_video_with_wan(prompt: str, output_path: str = "generated_video.mp4"):
-    """
-    Generate a short video from a text prompt using Wan2.1.
-    Returns the path or URL to the generated video.
-    """
-    try:
-        print("🎬 Starting Wan2.1 video generation...")
-        client = Client("Wan-AI/Wan2.1")
+dashscope.base_http_api_url = "https://dashscope-intl.aliyuncs.com/api/v1"
 
-        # Start video generation asynchronously
-        task_info = client.predict(
-            prompt=prompt,
-            size="1280*720",
-            watermark_wan=True,
-            seed=-1,
-            api_name="/t2v_generation_async"
+def generate_video_with_wan(prompt: str, output_path: str = "generated_video.mp4", size: str = "832*480"):
+    api_key = os.getenv("DASHSCOPE_API_KEY")
+    if not api_key:
+        raise EnvironmentError("❌ DASHSCOPE_API_KEY not found. Please add it to your .env file.")
+
+    print("🎬 Generating video with Wan2.5-t2v-preview... Please wait...")
+
+    rsp = VideoSynthesis.call(
+        api_key=api_key,
+        model="wan2.5-t2v-preview",
+        prompt=prompt,
+        prompt_extend=True,
+        size=size,
+        negative_prompt="",
+        watermark=False,
+        seed=12345
+    )
+
+    if rsp.status_code == HTTPStatus.OK:
+        video_url = rsp.output.video_url
+        print("✅ Video generated successfully!")
+        print("🔗 Video URL:", video_url)
+
+        try:
+            response = requests.get(video_url)
+            response.raise_for_status()
+            with open(output_path, "wb") as f:
+                f.write(response.content)
+            print(f"💾 Video saved to {output_path}")
+            return output_path
+        except Exception as e:
+            raise RuntimeError(f"⚠️ Failed to download video: {e}")
+
+    else:
+        raise RuntimeError(
+            f"❌ Video generation failed.\n"
+            f"Status Code: {rsp.status_code}\n"
+            f"Error Code: {rsp.code}\n"
+            f"Message: {rsp.message}\n"
         )
-
-        task_id = task_info.get("task_id", None)
-        if not task_id:
-            raise RuntimeError("❌ No task_id returned from model")
-
-        print(f"⏳ Task started (ID: {task_id}). Waiting for video to be ready...")
-
-        # Poll for status until the video is ready
-        for _ in range(20):
-            time.sleep(10)
-            status = client.predict(task_id, api_name="/status_refresh")
-            video_url = status.get("video", None)
-
-            if video_url:
-                print("✅ Video generation complete:", video_url)
-                # Download the video
-                video_data = requests.get(video_url).content
-                with open(output_path, "wb") as f:
-                    f.write(video_data)
-                print(f"💾 Saved locally to {output_path}")
-                return output_path
-
-        raise TimeoutError("⏰ Video generation timed out after waiting too long.")
-
-    except Exception as e:
-        print(f"❌ Failed to generate video: {e}")
-        return None

@@ -1,7 +1,8 @@
 """
-Agent nodes for the LangGraph workflow - Using simple string extraction
+Agent nodes for the LangGraph workflow - With Video Generation
 """
 import json
+import os
 from langchain_core.messages import HumanMessage, SystemMessage
 from models.state import AgentState
 from utils.llm_factory import initialize_llm
@@ -92,8 +93,7 @@ def shots_creation_node(state: AgentState) -> AgentState:
             "duration_seconds": 8,
             "shot_type": "Establishing shot",
             "visual_description": "Wide panoramic view of the historical building in its environment",
-            "narration": state.get("created_telling_story", "This historic building stands as a testament to time.")[
-                         :200],
+            "narration": state.get("created_telling_story", "This historic building stands as a testament to time.")[:200],
             "mood": "Grand",
             "transition": "Fade in",
             "ai_generation_prompt": "Cinematic establishing shot of historical building, wide angle, golden hour lighting"
@@ -103,9 +103,7 @@ def shots_creation_node(state: AgentState) -> AgentState:
             "duration_seconds": 6,
             "shot_type": "Medium shot",
             "visual_description": "Focus on main architectural features and facade details",
-            "narration": state.get("created_telling_story", "Its architecture tells stories of different eras.")[
-                         200:400] if len(
-                state.get("created_telling_story", "")) > 200 else "The architecture reflects its historical period.",
+            "narration": state.get("created_telling_story", "Its architecture tells stories of different eras.")[200:400] if len(state.get("created_telling_story", "")) > 200 else "The architecture reflects its historical period.",
             "mood": "Detailed",
             "transition": "Cut",
             "ai_generation_prompt": "Medium shot of historical building facade, architectural details, professional photography"
@@ -115,9 +113,7 @@ def shots_creation_node(state: AgentState) -> AgentState:
             "duration_seconds": 5,
             "shot_type": "Close-up",
             "visual_description": "Detailed close-up of unique architectural elements and craftsmanship",
-            "narration": state.get("created_telling_story", "Every detail has a story to tell.")[400:600] if len(
-                state.get("created_telling_story",
-                          "")) > 400 else "Detailed craftsmanship reveals the building's history.",
+            "narration": state.get("created_telling_story", "Every detail has a story to tell.")[400:600] if len(state.get("created_telling_story", "")) > 400 else "Detailed craftsmanship reveals the building's history.",
             "mood": "Intimate",
             "transition": "Dissolve",
             "ai_generation_prompt": "Close-up shot of historical building details, intricate stonework or features"
@@ -128,6 +124,7 @@ def shots_creation_node(state: AgentState) -> AgentState:
     state["progress_log"] += f"✓ Created {len(state['shots_description'])} shots\n"
 
     return state
+
 
 def refine_shots_node(state: AgentState) -> AgentState:
     """Refine shots based on feedback or quality checks"""
@@ -195,6 +192,112 @@ TASK: Improve the shots based on the feedback. Return ONLY JSON.
     return state
 
 
+def video_generation_node(state: AgentState) -> AgentState:
+    """Generate video clips from shot descriptions using Hugging Face Replicate"""
+    progress_msg = "Generating video clips from shots...\n"
+    state["progress_log"] += progress_msg
+    state["messages"].append("Starting video generation...")
+
+    # Check for HF_TOKEN
+    hf_token = os.environ.get("HF_TOKEN")
+    if not hf_token:
+        state["messages"].append("Error: HF_TOKEN environment variable not set")
+        state["progress_log"] += "ERROR: Missing HF_TOKEN\n"
+        return state
+
+    try:
+        from huggingface_hub import InferenceClient
+        from moviepy.editor import VideoFileClip, concatenate_videoclips
+
+        client = InferenceClient(
+            provider="replicate",
+            api_key=hf_token
+        )
+
+        shots = state.get("shots_description", [])
+        if not shots:
+            state["messages"].append("Error: No shots available for video generation")
+            state["progress_log"] += "ERROR: No shots\n"
+            return state
+
+        video_files = []
+        output_dir = "generated_clips"
+        os.makedirs(output_dir, exist_ok=True)
+
+        # Generate each shot
+        for i, shot in enumerate(shots):
+            shot_num = shot.get("shot_number", i + 1)
+            prompt = shot.get("ai_generation_prompt", "")
+
+            if not prompt:
+                state["messages"].append(f"Warning: Shot {shot_num} has no prompt, skipping")
+                continue
+
+            state["progress_log"] += f"Generating clip {shot_num}/{len(shots)}...\n"
+
+            try:
+                # Generate video using Hugging Face
+                video_bytes = client.text_to_video(
+                    prompt,
+                    model="Wan-AI/Wan2.2-TI2V-5B"
+                )
+
+                # Save the video file
+                filename = os.path.join(output_dir, f"clip_{shot_num}.mp4")
+                with open(filename, 'wb') as f:
+                    f.write(video_bytes)
+
+                video_files.append(filename)
+                state["messages"].append(f"✓ Clip {shot_num} generated successfully")
+                state["progress_log"] += f"✓ Clip {shot_num} saved\n"
+
+            except Exception as clip_error:
+                state["messages"].append(f"Error generating clip {shot_num}: {str(clip_error)}")
+                state["progress_log"] += f"ERROR on clip {shot_num}: {str(clip_error)}\n"
+
+        # Concatenate all clips if we have any
+        if video_files:
+            state["progress_log"] += "Combining clips into final video...\n"
+
+            try:
+                clips = [VideoFileClip(f) for f in video_files]
+                final_clip = concatenate_videoclips(clips, method="compose")
+
+                output_path = "final_video.mp4"
+                final_clip.write_videofile(
+                    output_path,
+                    codec="libx264",
+                    audio=False,
+                    fps=24
+                )
+
+                # Clean up individual clips
+                for clip in clips:
+                    clip.close()
+
+                state["final_video_path"] = output_path
+                state["messages"].append(f"🎬 Final video created: {output_path}")
+                state["progress_log"] += f"✓ Final video saved: {output_path}\n"
+
+            except Exception as concat_error:
+                state["messages"].append(f"Error combining clips: {str(concat_error)}")
+                state["progress_log"] += f"ERROR: {str(concat_error)}\n"
+                # Store individual clips info if concatenation fails
+                state["video_clips"] = video_files
+        else:
+            state["messages"].append("No video clips were generated")
+            state["progress_log"] += "ERROR: No clips generated\n"
+
+    except ImportError as ie:
+        state["messages"].append(f"Error: Missing required library - {str(ie)}")
+        state["progress_log"] += f"ERROR: Install huggingface_hub and moviepy\n"
+    except Exception as e:
+        state["messages"].append(f"Error in video generation: {str(e)}")
+        state["progress_log"] += f"ERROR: {str(e)}\n"
+
+    return state
+
+
 def output_node(state: AgentState) -> AgentState:
     """Prepare final output with all generated content"""
     progress_msg = "Preparing final output...\n"
@@ -206,6 +309,8 @@ def output_node(state: AgentState) -> AgentState:
         "video_shots": state.get("shots_description", []),
         "total_shots": len(state.get("shots_description", [])),
         "iterations": state.get("iteration_count", 0),
+        "final_video_path": state.get("final_video_path", ""),
+        "video_clips": state.get("video_clips", []),
         "status": "complete"
     }
 

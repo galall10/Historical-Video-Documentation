@@ -274,6 +274,7 @@ def render_results():
     with tab6:
         render_debug_tab(final_state)
 
+
 def render_summary_tab(final_state):
     """Render the summary tab"""
     st.subheader("Generation Summary")
@@ -341,7 +342,10 @@ def render_story_tab(final_state):
         st.warning("No story was generated")
 
 def render_shots_tab(final_state):
-    """Render the video shots tab"""
+    import streamlit as st
+    import json
+    import os
+
     st.subheader("🎥 Video Shot Breakdown")
     shots = final_state.get("shots_description", [])
 
@@ -354,22 +358,22 @@ def render_shots_tab(final_state):
 
         # Display each shot
         for i, shot in enumerate(shots):
-            shot_num = shot.get('shot_number', i + 1)
-            shot_type = shot.get('shot_type', 'Unknown')
-            duration = shot.get('duration_seconds', 0)
+            shot_num = shot.get("shot_number", i + 1)
+            shot_type = shot.get("shot_type", "Unknown")
+            duration = shot.get("duration_seconds", 0)
 
             with st.expander(
                 f"🎬 Shot {shot_num} - {shot_type} ({duration}s)",
-                expanded=(i == 0)  # Expand first shot by default
+                expanded=(i == 0)
             ):
                 col_left, col_right = st.columns([2, 1])
 
                 with col_left:
                     st.markdown("**Visual Description:**")
-                    st.write(shot.get('visual_description', 'N/A'))
+                    st.write(shot.get("visual_description", "N/A"))
 
                     st.markdown("**Narration:**")
-                    st.write(shot.get('narration', 'N/A'))
+                    st.write(shot.get("narration", "N/A"))
 
                 with col_right:
                     st.markdown("**Details:**")
@@ -377,27 +381,46 @@ def render_shots_tab(final_state):
                     st.write(f"**Transition:** {shot.get('transition', 'N/A')}")
 
                 st.markdown("**🤖 AI Generation Prompt:**")
-                ai_prompt = shot.get('ai_generation_prompt', 'N/A')
+                ai_prompt = shot.get("ai_generation_prompt", "N/A")
                 st.code(ai_prompt, language=None)
 
-                # Show error if present
-                if 'error' in shot:
-                    st.error(f"⚠️ {shot['error']}")
-                    if 'raw_response' in shot:
-                        with st.expander("View Raw LLM Response"):
-                            st.code(shot['raw_response'])
+                # 🎞️ Generate video using Wan 2.2
+                generate_btn_key = f"generate_video_{shot_num}"
+                if st.button(f"🎞️ Generate Video for Shot {shot_num}", key=generate_btn_key):
+                    from utils.video_generator import generate_video_with_wan
+                    status_placeholder = st.empty()
 
-        # Download shots as JSON
+                    try:
+                        status_placeholder.info("⏳ Generating video with Wan2.2-t2v-plus... please wait (20–60s)...")
+                        video_path = generate_video_with_wan(ai_prompt, f"shot_{shot_num}.mp4")
+
+                        if os.path.exists(video_path):
+                            status_placeholder.success("✅ Video generated successfully!")
+                            st.video(video_path)
+                        else:
+                            status_placeholder.error("❌ Video file not found after generation.")
+                    except Exception as e:
+                        status_placeholder.error(f"❌ Failed: {e}")
+
+                # Show error if present
+                if "error" in shot:
+                    st.error(f"⚠️ {shot['error']}")
+                    if "raw_response" in shot:
+                        with st.expander("View Raw LLM Response"):
+                            st.code(shot["raw_response"])
+
+        # Download all shots as JSON
         shots_json = json.dumps(shots, indent=2)
         st.download_button(
             "📥 Download All Shots (JSON)",
             shots_json,
             file_name="video_shots.json",
-            mime="application/json"
+            mime="application/json",
         )
     else:
         st.warning("No shots were generated")
         st.info("💡 Tip: Check the Debug Info tab to see what happened during shot creation")
+
 
 def render_log_tab(final_state):
     """Render the progress log tab"""

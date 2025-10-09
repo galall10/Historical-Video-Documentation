@@ -4,6 +4,7 @@ import requests
 from http import HTTPStatus
 from dashscope import VideoSynthesis
 import dashscope
+from config import WAN_MODEL
 
 
 # CONFIGURATION
@@ -22,14 +23,14 @@ def generate_video_with_wan(
     if not api_key:
         raise EnvironmentError("❌ DASHSCOPE_API_KEY not found. Please add it to your .env file.")
 
-    print("🎬 Generating video with wan2.1-t2v-turbo...")
+    print(f"🎬 Generating video with {WAN_MODEL}...")
     print(f"🧠 Prompt: {prompt[:120]}{'...' if len(prompt) > 120 else ''}")
     print(f"📐 Target size: {size}")
 
     # Send generation request
     rsp = VideoSynthesis.call(
         api_key=api_key,
-        model="wan2.1-t2v-turbo",
+        model=WAN_MODEL,
         prompt=prompt,
         prompt_extend=True,
         size=size,

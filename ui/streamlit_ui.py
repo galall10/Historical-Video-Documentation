@@ -13,7 +13,7 @@ from moviepy.editor import VideoFileClip, concatenate_videoclips
 
 # Main APP
 def create_interface():
-    st.set_page_config(page_title="AI Tour Historian", page_icon="🏛️", layout="wide")
+    st.set_page_config(page_title="HistoTales", page_icon="🏛️", layout="wide")
     st.markdown("""
         <style>
         .stProgress > div > div > div > div {background-color: #1f77b4;}
@@ -57,15 +57,11 @@ def render_sidebar():
     with st.sidebar:
         st.header("⚙️ Configuration")
 
-        # AI Provider
-        st.subheader("🧠 AI Provider")
-        st.info("**Provider:** Gemini")
-
         # Model Info
-        st.divider()
-        st.subheader("⚙️ Model Settings")
-        st.info(f"**Model:** {config.GEMINI_MODEL}")
-        st.info(f"**Max Iterations:** {config.MAX_ITERATIONS}")
+        # st.divider()
+        # st.subheader("⚙️ Model Settings")
+        st.info(f"**LLM Model:** {config.GEMINI_MODEL}")
+        st.info(f"**Video Model:** {config.WAN_MODEL}")
 
         # Usage Guide
         st.divider()

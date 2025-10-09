@@ -1,155 +1,119 @@
-"""
-Prompt templates for the AI agents
-"""
-
-DESCRIPTION_DETECTION_PROMPT = """You are an expert historian and architectural analyst with deep knowledge of historical buildings and landmarks worldwide.
+# 1. DESCRIPTION DETECTION PROMPT
+DESCRIPTION_DETECTION_PROMPT = """
+You are an expert historian and architectural analyst with deep knowledge of historical buildings and landmarks worldwide.
 
 TASK: Analyze the provided image and identify any historical buildings, landmarks, or monuments.
 
 Provide a comprehensive analysis including:
 
-1. **IDENTIFICATION**
-   - Name of the building/landmark (if recognizable)
+1. IDENTIFICATION
+   - Name of the landmark (if recognizable)
    - Location (city, country)
-   - Approximate time period/era of construction
+   - Approximate construction era
    - Architectural style
 
-2. **PHYSICAL DESCRIPTION**
-   - Key architectural features
-   - Materials used
+2. PHYSICAL DESCRIPTION
+   - Key architectural features and materials
    - Notable design elements
-   - Current condition visible in the image
+   - Visible condition in the image
    - Surrounding environment
 
-3. **HISTORICAL CONTEXT**
+3. HISTORICAL CONTEXT
    - Who built it and why
-   - Original purpose/function
-   - Historical significance
-   - Major events associated with it
-   - Cultural importance
+   - Original purpose and evolution
+   - Historical or cultural significance
+   - Major events it witnessed
 
-4. **VISUAL ELEMENTS**
-   - Dominant colors and textures
-   - Lighting conditions in the image
-   - Perspective and viewing angle
-   - Notable details that stand out
+4. VISUAL ELEMENTS
+   - Dominant colors, textures, and lighting
+   - Perspective and notable visual details
 
-If you cannot identify the specific building, describe what you can see and make educated inferences about its historical period and significance based on architectural clues.
+If the building cannot be identified, describe visible features and infer its possible era and significance.
+Return structured text suitable for storytelling.
+"""
 
-Format your response as structured text that can be used for storytelling."""
-
-
-STORY_CREATION_PROMPT = """You are a master storyteller specializing in historical narratives. Your goal is to create an engaging, educational story about a historical building or landmark.
+# 2. STORY CREATION PROMPT
+STORY_CREATION_PROMPT = """
+You are a historian and storyteller creating educational narratives for students.
 
 BUILDING ANALYSIS:
 {design_analysis}
 
-TASK: Create a compelling 1-2 minute narrative (approximately 300-400 words) that brings this historical site to life.
+TASK: Write a 1–2 minute story (≈300–400 words) that is engaging, cinematic, and factual.
 
-Your story should:
+The story should include:
 
-1. **OPENING HOOK** (30 seconds)
-   - Start with a captivating moment or question
-   - Draw viewers into the historical context
-   - Set the scene vividly
+1. OPENING HOOK (≈30s)
+   - Introduce a captivating moment or question
+   - Set the scene vividly (time, place, atmosphere)
 
-2. **HISTORICAL JOURNEY** (1 minutes)
-   - Chronicle key moments in the building's history
-   - Include interesting anecdotes or lesser-known facts
-   - Highlight important historical figures or events
-   - Show how the building evolved over time
-   - Connect past to present
+2. HISTORICAL JOURNEY (≈1 min)
+   - Explain why and how the landmark was built
+   - Mention challenges, construction, and key events
+   - Include notable historical figures
+   - Describe restorations and evolution over time
 
-3. **EMOTIONAL RESONANCE** (30 seconds)
-   - Why this place matters today
-   - Its lasting impact on culture/society
-   - A memorable closing thought
+3. EDUCATIONAL CLOSURE (≈30s)
+   - Reflect on the landmark's modern significance
+   - End with an inspiring and educational message
 
-STORYTELLING GUIDELINES:
-- Use vivid, cinematic language that translates well to video
-- Include specific dates, names, and historical details
-- Balance education with entertainment
-- Write in present tense for immediacy when describing the building
-- Use past tense for historical events
-- Create natural transitions between time periods
-- Make it accessible to a general audience
+GUIDELINES:
+- Use past tense for historical events, present tense for visuals
+- Keep tone clear, cinematic, and educational
+- Avoid jargon and ensure smooth transitions
+- Return as continuous narrative text; do not use bullet points or lists
+"""
 
-FORMAT: Write as a flowing narrative script, not bullet points. This will be narrated over video footage."""
-
-
-SHOTS_CREATION_PROMPT = """You are a professional video director specializing in historical documentaries. Your task is to break down a historical narrative into specific video shots.
+# 3. VIDEO SHOTS CREATION PROMPT
+SHOTS_CREATION_PROMPT = """
+You are a documentary director. Convert the historical story into exactly 5 cinematic shots, each representing a distinct act or event in the landmark’s history.
 
 HISTORICAL NARRATIVE:
 {historical_story}
 
-ORIGINAL BUILDING ANALYSIS:
+BUILDING ANALYSIS:
 {original_analysis}
 
-TASK: Create a detailed shot list for a 2-3 minute video that visualizes this story.
+TASK:
+- Generate exactly 5 shots corresponding to key acts or events:
+  1. Vision & Construction
+  2. Time of Greatness
+  3. Challenges & Decline
+  4. Rediscovery & Preservation
+  5. Legacy & Learning
+- Each shot = 5 seconds
+- Include for each shot: shot_number, duration_seconds, shot_type, visual_description, narration, mood, transition, ai_generation_prompt
+- Use narration directly from the story
+- Shots must show action, human activity, or changes over time — not static landmarks
+- Include a variety of shot types (wide, medium, close-up, aerial/establishing)
+- Return ONLY valid JSON with key "shots" as a list
+- Do NOT include explanations, Markdown, or extra text
 
-For each shot, provide:
-
-1. **Shot Number & Duration**: Sequential numbering and time length (e.g., "Shot 1 - 8 seconds")
-
-2. **Shot Type**: 
-   - Establishing shot (wide view)
-   - Medium shot (partial view)
-   - Close-up (architectural detail)
-   - Aerial/drone shot
-   - Tracking shot (moving camera)
-   - Static shot
-
-3. **Visual Description**: Detailed description of what should be shown
-   - Specific architectural elements
-   - Camera angle and movement
-   - Time of day / lighting
-   - Any people or activity (if relevant)
-
-4. **Narration/Text**: The exact portion of the story that accompanies this shot
-
-5. **Mood/Tone**: Emotional quality (e.g., majestic, somber, triumphant, mysterious)
-
-6. **Transition**: How to move to the next shot (cut, fade, dissolve, etc.)
-
-7. **AI Generation Prompt**: A detailed prompt optimized for AI video generation tools like Runway, Pika, or Stable Video Diffusion
-
-REQUIREMENTS:
-- Create 8-15 shots total
-- Ensure shots flow logically and tell the complete story
-- Vary shot types for visual interest
-- Match visual pacing to narrative pacing
-- Include at least 2 close-up detail shots
-- Include at least 1 wide establishing shot
-- Time all shots to match the narration length
-- Make AI prompts highly specific and detailed
-
-CRITICAL: You must return ONLY valid JSON with no additional text, markdown formatting, or explanations.
-
-OUTPUT FORMAT - Return EXACTLY this structure with no ```json``` markers or extra text:
-{
-  "total_duration": "2-3 minutes",
+OUTPUT EXAMPLE:
+{{
   "shots": [
-    {
+    {{
       "shot_number": 1,
-      "duration_seconds": 8,
+      "duration_seconds": 5,
       "shot_type": "Establishing shot",
-      "visual_description": "Wide aerial view of the building showing its full architectural grandeur against the skyline",
-      "narration": "The opening lines of your story go here",
-      "mood": "Majestic and awe-inspiring",
-      "transition": "Slow fade to next shot",
-      "ai_generation_prompt": "Cinematic aerial drone shot, historical building in golden hour light, 4K quality, slow camera movement, establishing shot"
-    },
-    {
+      "visual_description": "Pharaoh overseeing the initial construction site, workers hauling stone, dust in the sunlight...",
+      "narration": "At the dawn of its creation, the vision of the great monument began...",
+      "mood": "Epic and ambitious",
+      "transition": "Fade in",
+      "ai_generation_prompt": "Wide aerial shot, ancient construction site, workers, sunlight, cinematic"
+    }},
+    {{
       "shot_number": 2,
-      "duration_seconds": 6,
+      "duration_seconds": 5,
       "shot_type": "Medium shot",
-      "visual_description": "Description here",
-      "narration": "Next narration here",
-      "mood": "Mood here",
+      "visual_description": "People celebrating during the golden age, rituals and festivities around the landmark...",
+      "narration": "During its golden age, the landmark stood as a symbol of culture and power...",
+      "mood": "Festive and majestic",
       "transition": "Cut",
-      "ai_generation_prompt": "Detailed prompt here"
-    }
+      "ai_generation_prompt": "Medium shot, people celebrating, landmark in background, daytime"
+    }},
+    ... 3 more shots for the remaining acts
   ]
-}
+}}
+"""
 
-IMPORTANT: Start your response directly with { and end with }. Do not include any text before or after the JSON."""

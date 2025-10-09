@@ -18,23 +18,6 @@ def generate_video_with_wan(
     retries: int = 3,
     wait_between_retries: int = 3
 ):
-    """
-    Generate a short video clip using DashScope's wan2.2-t2v-plus model.
-
-    Parameters:
-        prompt (str): Descriptive text prompt for the video.
-        output_path (str): Where to save the generated video.
-        size (str): Resolution of the output video (e.g., "832*480").
-        retries (int): Number of download retry attempts.
-        wait_between_retries (int): Seconds to wait between retries.
-
-    Returns:
-        str: Path to the saved video file.
-
-    Raises:
-        EnvironmentError: If API key is missing.
-        RuntimeError: If video generation or download fails.
-    """
     api_key = os.getenv("DASHSCOPE_API_KEY")
     if not api_key:
         raise EnvironmentError("❌ DASHSCOPE_API_KEY not found. Please add it to your .env file.")

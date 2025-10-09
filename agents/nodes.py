@@ -83,49 +83,274 @@ def story_telling_node(state: AgentState) -> AgentState:
 
 
 def shots_creation_node(state: AgentState) -> AgentState:
-    """Simple reliable shot creation"""
+    """
+    Create video shots based on the actual building analysis and story
+    Uses LLM to generate contextually accurate shots
+    """
     print("\n=== SHOTS NODE START ===")
 
-    # Always create some basic shots
-    state["shots_description"] = [
-        {
-            "shot_number": 1,
-            "duration_seconds": 8,
-            "shot_type": "Establishing shot",
-            "visual_description": "Wide panoramic view of the historical building in its environment",
-            "narration": state.get("created_telling_story", "This historic building stands as a testament to time.")[:200],
-            "mood": "Grand",
-            "transition": "Fade in",
-            "ai_generation_prompt": "Cinematic establishing shot of historical building, wide angle, golden hour lighting"
-        },
-        {
-            "shot_number": 2,
-            "duration_seconds": 6,
-            "shot_type": "Medium shot",
-            "visual_description": "Focus on main architectural features and facade details",
-            "narration": state.get("created_telling_story", "Its architecture tells stories of different eras.")[200:400] if len(state.get("created_telling_story", "")) > 200 else "The architecture reflects its historical period.",
-            "mood": "Detailed",
-            "transition": "Cut",
-            "ai_generation_prompt": "Medium shot of historical building facade, architectural details, professional photography"
-        },
-        {
-            "shot_number": 3,
-            "duration_seconds": 5,
-            "shot_type": "Close-up",
-            "visual_description": "Detailed close-up of unique architectural elements and craftsmanship",
-            "narration": state.get("created_telling_story", "Every detail has a story to tell.")[400:600] if len(state.get("created_telling_story", "")) > 400 else "Detailed craftsmanship reveals the building's history.",
-            "mood": "Intimate",
-            "transition": "Dissolve",
-            "ai_generation_prompt": "Close-up shot of historical building details, intricate stonework or features"
-        }
-    ]
+    progress_msg = "Creating video shots based on analysis...\n"
+    state["progress_log"] = state.get("progress_log", "") + progress_msg
 
-    state["messages"].append(f"Created {len(state['shots_description'])} basic shots")
-    state["progress_log"] += f"✓ Created {len(state['shots_description'])} shots\n"
+    # Get the actual analysis and story
+    image_analysis = state.get("image_analysis", "")
+    story = state.get("created_telling_story", "")
+    api_provider = state.get("api_provider", "gemini")
+
+    if not image_analysis or not story:
+        state["messages"].append("Error: Missing analysis or story for shot creation")
+        state["progress_log"] += "ERROR: Cannot create shots without analysis and story\n"
+        return state
+
+    # EXTRACT BUILDING INFO MORE RELIABLY
+    def extract_building_info(analysis_text):
+        """Extract key building details from analysis"""
+        info = {
+            "name": "historical building",
+            "location": "its location",
+            "style": "architectural",
+            "features": "ancient stonework",
+            "period": "historical"
+        }
+
+        # Look for common patterns in analysis
+        lines = analysis_text.split('\n')
+        for line in lines:
+            line_lower = line.lower()
+
+            # Extract name
+            if 'name:' in line_lower or 'building:' in line_lower or 'structure:' in line_lower:
+                parts = line.split(':', 1)
+                if len(parts) > 1:
+                    info["name"] = parts[1].strip().split('.')[0].strip()
+
+            # Extract location
+            if 'location:' in line_lower or 'where:' in line_lower:
+                parts = line.split(':', 1)
+                if len(parts) > 1:
+                    info["location"] = parts[1].strip().split('.')[0].strip()
+
+            # Extract architectural style
+            if 'style:' in line_lower or 'architecture:' in line_lower:
+                parts = line.split(':', 1)
+                if len(parts) > 1:
+                    info["style"] = parts[1].strip().split('.')[0].strip()
+
+            # Extract time period
+            if 'period:' in line_lower or 'era:' in line_lower or 'built:' in line_lower:
+                parts = line.split(':', 1)
+                if len(parts) > 1:
+                    info["period"] = parts[1].strip().split('.')[0].strip()
+
+        # Extract features from full text
+        if 'dome' in analysis_text.lower():
+            info["features"] = "domes and arches"
+        elif 'tower' in analysis_text.lower() or 'spire' in analysis_text.lower():
+            info["features"] = "towers and spires"
+        elif 'column' in analysis_text.lower():
+            info["features"] = "columns and pillars"
+        elif 'facade' in analysis_text.lower():
+            info["features"] = "ornate facade"
+
+        return info
+
+    building_info = extract_building_info(image_analysis)
+
+    try:
+        llm = initialize_llm(api_provider)
+
+        # Create a MORE SPECIFIC prompt with clearer instructions
+        shot_creation_prompt = f"""You are a professional cinematographer creating a documentary video.
+
+BUILDING INFORMATION:
+{image_analysis}
+
+HISTORICAL NARRATIVE:
+{story}
+
+CRITICAL INSTRUCTIONS:
+- Create 3 shots about THIS SPECIFIC BUILDING: {building_info['name']}
+- Use details from the analysis above (architectural features, location, style)
+- Each shot must reference the actual building name
+- Narration must come from the provided story
+- Duration: 5-8 seconds per shot
+
+OUTPUT FORMAT (respond with ONLY this JSON, no other text):
+{{
+  "shots": [
+    {{
+      "shot_number": 1,
+      "duration_seconds": 8,
+      "shot_type": "Establishing shot",
+      "visual_description": "Wide view showing [SPECIFIC BUILDING] in [LOCATION] with [FEATURES]",
+      "narration": "Quote from story, max 200 characters",
+      "mood": "Epic/Majestic/Mysterious",
+      "transition": "Fade in",
+      "ai_generation_prompt": "Cinematic establishing shot of [BUILDING NAME], [LOCATION], [ARCHITECTURAL STYLE], [SPECIFIC FEATURES], golden hour lighting, professional cinematography, 8k, realistic"
+    }},
+    {{
+      "shot_number": 2,
+      "duration_seconds": 6,
+      "shot_type": "Medium shot",
+      "visual_description": "Medium shot of [SPECIFIC ARCHITECTURAL FEATURES]",
+      "narration": "Another story excerpt, max 200 chars",
+      "mood": "Dramatic/Grand",
+      "transition": "Cut",
+      "ai_generation_prompt": "Medium shot of [BUILDING NAME], focus on [SPECIFIC FEATURES], detailed architecture, dramatic lighting"
+    }},
+    {{
+      "shot_number": 3,
+      "duration_seconds": 5,
+      "shot_type": "Close-up",
+      "visual_description": "Close detail of [SPECIFIC ELEMENT]",
+      "narration": "Final story excerpt, max 200 chars",
+      "mood": "Intimate/Ancient",
+      "transition": "Dissolve",
+      "ai_generation_prompt": "Close-up of [BUILDING NAME] [SPECIFIC DETAIL], craftsmanship, texture, weathering"
+    }}
+  ]
+}}"""
+
+        messages = [
+            SystemMessage(content=shot_creation_prompt),
+            HumanMessage(content=f"Generate 3 shots for {building_info['name']}. Return ONLY JSON, no markdown.")
+        ]
+
+        state["progress_log"] += f"Generating shots for {building_info['name']}...\n"
+        response = llm.invoke(messages)
+
+        # Extract JSON from response
+        content = response.content.strip()
+
+        # Remove markdown code blocks if present
+        if "```json" in content:
+            content = content.split("```json")[1].split("```")[0].strip()
+        elif "```" in content:
+            content = content.split("```")[1].split("```")[0].strip()
+
+        # Remove any text before { or after }
+        start_idx = content.find('{')
+        end_idx = content.rfind('}') + 1
+        if start_idx != -1 and end_idx > start_idx:
+            content = content[start_idx:end_idx]
+
+        try:
+            shots_data = json.loads(content)
+
+            # Extract shots array
+            if isinstance(shots_data, dict) and "shots" in shots_data:
+                shots = shots_data["shots"]
+            elif isinstance(shots_data, list):
+                shots = shots_data
+            else:
+                raise ValueError("Invalid JSON structure")
+
+            # Validate shots
+            if not shots or len(shots) == 0:
+                raise ValueError("No shots generated")
+
+            # Ensure all required fields exist
+            for i, shot in enumerate(shots):
+                shot.setdefault("shot_number", i + 1)
+                shot.setdefault("duration_seconds", 5)
+                shot.setdefault("shot_type", "Medium shot")
+                shot.setdefault("visual_description", "")
+                shot.setdefault("narration", "")
+                shot.setdefault("mood", "Dramatic")
+                shot.setdefault("transition", "Cut")
+                shot.setdefault("ai_generation_prompt", "")
+
+            state["shots_description"] = shots
+            state["messages"].append(f"✓ Created {len(shots)} shots for {building_info['name']}")
+            state["progress_log"] += f"✓ Generated {len(shots)} contextual shots\n"
+
+        except (json.JSONDecodeError, ValueError) as e:
+            # IMPROVED FALLBACK: Use extracted building info
+            state["messages"].append(f"Warning: JSON parse failed, creating contextual fallback shots")
+            state["progress_log"] += f"WARNING: Using fallback with extracted info\n"
+
+            # Split story into chunks for narration
+            story_chunks = []
+            if story:
+                # Try to split by sentences
+                import re
+                sentences = re.split(r'[.!?]+', story)
+                sentences = [s.strip() for s in sentences if s.strip()]
+
+                # Group into ~150 char chunks
+                current_chunk = ""
+                for sentence in sentences:
+                    if len(current_chunk) + len(sentence) < 180:
+                        current_chunk += sentence + ". "
+                    else:
+                        if current_chunk:
+                            story_chunks.append(current_chunk.strip())
+                        current_chunk = sentence + ". "
+                if current_chunk:
+                    story_chunks.append(current_chunk.strip())
+
+            # Ensure we have 3 chunks
+            while len(story_chunks) < 3:
+                story_chunks.append(f"A glimpse into the history of {building_info['name']}.")
+
+            # CREATE BUILDING-SPECIFIC FALLBACK SHOTS
+            state["shots_description"] = [
+                {
+                    "shot_number": 1,
+                    "duration_seconds": 8,
+                    "shot_type": "Establishing shot",
+                    "visual_description": f"Wide panoramic view of {building_info['name']} in {building_info['location']}, showing its {building_info['style']} architecture",
+                    "narration": story_chunks[0][:200],
+                    "mood": "Epic",
+                    "transition": "Fade in",
+                    "ai_generation_prompt": f"Cinematic establishing shot of {building_info['name']}, {building_info['location']}, {building_info['style']} architecture, wide angle, golden hour lighting, professional cinematography, 8k quality, realistic, architectural photography"
+                },
+                {
+                    "shot_number": 2,
+                    "duration_seconds": 6,
+                    "shot_type": "Medium shot",
+                    "visual_description": f"Medium shot focusing on the {building_info['features']} of {building_info['name']}",
+                    "narration": story_chunks[1][:200],
+                    "mood": "Majestic",
+                    "transition": "Cut",
+                    "ai_generation_prompt": f"Medium shot of {building_info['name']}, {building_info['style']} architecture, {building_info['features']}, {building_info['period']} era, dramatic lighting, architectural details, historical monument"
+                },
+                {
+                    "shot_number": 3,
+                    "duration_seconds": 5,
+                    "shot_type": "Close-up",
+                    "visual_description": f"Close-up of the intricate details and craftsmanship of {building_info['name']}",
+                    "narration": story_chunks[2][:200],
+                    "mood": "Ancient",
+                    "transition": "Dissolve",
+                    "ai_generation_prompt": f"Close-up shot of {building_info['name']}, {building_info['period']} craftsmanship, architectural details, {building_info['features']}, weathered texture, historical monument, intricate details, high detail photography"
+                }
+            ]
+
+            state["messages"].append(
+                f"✓ Created {len(state['shots_description'])} fallback shots for {building_info['name']}")
+            state["progress_log"] += f"✓ Fallback shots created with building-specific context\n"
+
+    except Exception as e:
+        state["messages"].append(f"Error creating shots: {str(e)}")
+        state["progress_log"] += f"ERROR in shot creation: {str(e)}\n"
+
+        # Ultimate fallback - still try to use building info
+        building_name = building_info.get('name', 'historical monument')
+        state["shots_description"] = [
+            {
+                "shot_number": 1,
+                "duration_seconds": 8,
+                "shot_type": "Establishing shot",
+                "visual_description": f"Wide view of {building_name}",
+                "narration": story[:180] if story else f"Exploring {building_name}.",
+                "mood": "Grand",
+                "transition": "Fade in",
+                "ai_generation_prompt": f"Cinematic wide shot of {building_name}, dramatic lighting, professional cinematography, historical architecture"
+            }
+        ]
 
     return state
-
-
 def refine_shots_node(state: AgentState) -> AgentState:
     """Refine shots based on feedback or quality checks"""
     progress_msg = "Refining video shots...\n"

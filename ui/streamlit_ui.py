@@ -1,12 +1,14 @@
 import os
 import json
 import time
-import streamlit as st
 from PIL import Image
 import config
 from agents.workflow import create_workflow
 from utils.image_utils import image_to_base64
 from utils.video_generator import generate_video_with_wan
+import streamlit as st
+from moviepy.editor import VideoFileClip, concatenate_videoclips
+
 
 
 # Main APP
@@ -199,47 +201,120 @@ def render_story_tab(final_state, tab):
             st.download_button("📥 Download", story, "story.txt")
 
 
+
+def generate_shot_video(shot, filename, landmark_name="a historical landmark"):
+    """
+    Generates a single cinematic shot video using the AI video generator.
+    Returns the path to the generated video and the used prompt.
+    """
+    full_prompt = f"""
+Cinematic reenactment of {landmark_name}.
+Scene Title: {shot.get('shot_title', '')}
+Visual: {shot.get('visual_description', '')}
+Narration: "{shot.get('narration', '')}"
+Mood: {shot.get('mood', '')}
+The landmark should appear in the background.
+Use dynamic motion, natural lighting, and realistic atmosphere.
+"""
+
+    video_path = generate_video_with_wan(full_prompt.strip(), filename)
+
+    if os.path.exists(video_path):
+        return video_path, full_prompt
+    else:
+        raise FileNotFoundError(f"Video generation failed: {filename}")
+
+
 def render_shots_tab(final_state, tab):
     with tab:
         st.subheader("🎥 Video Shot Breakdown")
+
         shots = final_state.get("shots_description", [])
         if not shots:
-            st.info("No shots generated."); return
+            st.info("No shots generated yet.")
+            return
 
         st.info(f"Total shots: {len(shots)}")
+        landmark_name = final_state.get("landmark_name", "a historical landmark")
 
+        generated_videos = []
+
+        # Loop through each shot and display its info + generation btn
         for i, shot in enumerate(shots):
             with st.expander(f"🎬 {shot.get('shot_title', f'Shot {i+1}')}", expanded=False):
                 st.markdown(f"**Visual:** {shot.get('visual_description', 'N/A')}")
                 st.markdown(f"**Narration:** {shot.get('narration', 'N/A')}")
                 st.markdown(f"**Mood:** {shot.get('mood', 'N/A')} | **Transition:** {shot.get('transition', 'N/A')}")
 
-                # Build full cinematic prompt for video
+                # Build and show the AI generation prompt
                 full_prompt = f"""
-Cinematic reenactment of {final_state.get('landmark_name', 'a historical landmark')}.
+Cinematic reenactment of {landmark_name}.
 Scene Title: {shot.get('shot_title', '')}
 Visual: {shot.get('visual_description', '')}
 Narration: "{shot.get('narration', '')}"
 Mood: {shot.get('mood', '')}
-The landmark should appear in the scene background.
-Use dynamic motion, natural light, and atmosphere.
+The landmark should appear in the background.
+Use dynamic motion, natural lighting, and realistic atmosphere.
 """
+                st.code(full_prompt, language=None)
 
-                # st.code(full_prompt, language=None)
+                video_filename = f"shot_{i+1}.mp4"
 
+                # Generate the video when the button is clicked
                 if st.button(f"🎞️ Generate Video for Shot {i+1}", key=f"gen_{i}"):
                     try:
-                        st.info("⏳ Generating video...")
-                        video_path = generate_video_with_wan(full_prompt.strip(), f"shot_{i+1}.mp4")
-                        if os.path.exists(video_path):
-                            st.success("✅ Video ready!")
-                            st.video(video_path)
-                        else:
-                            st.error("Video file missing.")
+                        st.info(f"⏳ Generating video for Shot {i+1}...")
+                        video_path, _ = generate_shot_video(shot, video_filename, landmark_name)
+                        st.success(f"✅ Shot {i+1} ready!")
+                        st.video(video_path)
+                        generated_videos.append(video_path)
                     except Exception as e:
-                        st.error(f"Failed: {e}")
+                        st.error(f"❌ Failed: {e}")
 
-        st.download_button("📥 Download Shots JSON", json.dumps(shots, indent=2), "shots.json")
+        # Download Shots JSON
+        st.download_button(
+            "📥 Download Shots JSON",
+            json.dumps(shots, indent=2),
+            "shots.json",
+            mime="application/json"
+        )
+
+        # Combine all generated shots into a single cinematic video
+        st.divider()
+        st.subheader("🎞️ Combine All Shots into One Final Video")
+
+        if st.button("🚀 Generate Final Full Video", type="primary"):
+            all_videos = []
+
+            # Generate any missing videos automatically
+            for i, shot in enumerate(shots):
+                filename = f"shot_{i+1}.mp4"
+                if not os.path.exists(filename):
+                    try:
+                        st.info(f"🎬 Missing Shot {i+1} — Generating now...")
+                        video_path, _ = generate_shot_video(shot, filename, landmark_name)
+                        all_videos.append(video_path)
+                    except Exception as e:
+                        st.warning(f"⚠️ Failed to generate shot {i+1}: {e}")
+                else:
+                    all_videos.append(filename)
+
+            if not all_videos:
+                st.warning("⚠️ No videos available to combine.")
+                return
+
+            # Concatenate all available clips into one
+            try:
+                st.info("🔄 Combining all shots into a single cinematic video...")
+                clips = [VideoFileClip(v) for v in all_videos]
+                final_clip = concatenate_videoclips(clips, method="compose")
+                output_path = "final_landmark_video.mp4"
+                final_clip.write_videofile(output_path, codec="libx264", audio_codec="aac")
+                st.success("✅ Final cinematic video ready!")
+                st.video(output_path)
+            except Exception as e:
+                st.error(f"❌ Failed to combine videos: {e}")
+
 
 
 

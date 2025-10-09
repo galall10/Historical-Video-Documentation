@@ -18,7 +18,7 @@ def detect_description_node(state: AgentState) -> AgentState:
     api_provider = state.get("api_provider", "openrouter")
 
     try:
-        llm = initialize_llm(api_provider)
+        llm = initialize_llm()
         response = llm.invoke([
             HumanMessage(content=[
                 {"type": "text", "text": DESCRIPTION_DETECTION_PROMPT},
@@ -51,7 +51,7 @@ def story_telling_node(state: AgentState) -> AgentState:
     api_provider = state.get("api_provider", "openrouter")
 
     try:
-        llm = initialize_llm(api_provider)
+        llm = initialize_llm()
 
         story_prompt = f"{STORY_CREATION_PROMPT.format(design_analysis=image_analysis)}"
         messages = [
@@ -89,10 +89,8 @@ def shots_creation_node(state: AgentState) -> AgentState:
         state["progress_log"] += "ERROR: Missing story content.\n"
         return state
 
-    api_provider = state.get("api_provider", "openrouter")
-
     try:
-        llm = initialize_llm(api_provider)
+        llm = initialize_llm()
         prompt = SHOTS_CREATION_PROMPT.format(
             historical_story=story,
             original_analysis=state.get("image_analysis", "")
@@ -164,7 +162,7 @@ def refine_shots_node(state: AgentState) -> AgentState:
         return state
 
     try:
-        llm = initialize_llm(api_provider)
+        llm = initialize_llm()
 
         refinement_prompt = f"""
 Refine the following cinematic shots based on the feedback provided.

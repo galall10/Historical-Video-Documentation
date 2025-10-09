@@ -146,7 +146,6 @@ def shots_creation_node(state: AgentState) -> AgentState:
 def refine_shots_node(state: AgentState) -> AgentState:
     """Refine the generated shots if feedback is available."""
     state["progress_log"] = state.get("progress_log", "") + "Refining shots...\n"
-    api_provider = state.get("api_provider", "openrouter")
     refinement_notes = state.get("refinement_notes", [])
     current_shots = state.get("shots_description", [])
     iteration_count = state.get("iteration_count", 0)

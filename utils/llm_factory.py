@@ -13,6 +13,6 @@ def initialize_llm():
     return ChatGoogleGenerativeAI(
         model=config.GEMINI_MODEL,
         google_api_key=config.GEMINI_API_KEY,
-        temperature=0.7,
+        temperature=0.5,
         convert_system_message_to_human=True
     )

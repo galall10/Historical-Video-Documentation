@@ -1,6 +1,3 @@
-"""
-Agent nodes for the LangGraph workflow - Using simple string extraction
-"""
 import json
 from langchain_core.messages import HumanMessage, SystemMessage
 from models.state import AgentState
@@ -9,21 +6,19 @@ from prompts.templates import *
 
 
 def detect_description_node(state: AgentState) -> AgentState:
-    """Detect and analyze the historical building/object in the image"""
-    progress_msg = "Analyzing image for historical content...\n"
-    state["progress_log"] = state.get("progress_log", "") + progress_msg
-
+    """Analyze the image and extract historical, architectural, and cultural context."""
+    state["progress_log"] = state.get("progress_log", "") + "Analyzing image for historical content...\n"
     image_data = state.get("image_base64", "")
+
     if not image_data:
-        state["messages"].append("Error: No image data provided")
-        state["progress_log"] += "ERROR: No image data\n"
+        state["messages"].append("Error: No image data provided.")
+        state["progress_log"] += "ERROR: Missing image data.\n"
         return state
 
     api_provider = state.get("api_provider", "openrouter")
 
     try:
         llm = initialize_llm(api_provider)
-
         response = llm.invoke([
             HumanMessage(content=[
                 {"type": "text", "text": DESCRIPTION_DETECTION_PROMPT},
@@ -32,11 +27,11 @@ def detect_description_node(state: AgentState) -> AgentState:
         ])
 
         state["image_analysis"] = response.content
-        state["messages"].append("Historical content detected and analyzed")
-        state["progress_log"] += "Analysis complete\n"
+        state["messages"].append("Image successfully analyzed.")
+        state["progress_log"] += "Image analysis complete.\n"
 
     except Exception as e:
-        state["messages"].append(f"Error in image analysis: {str(e)}")
+        state["messages"].append(f"Image analysis failed: {str(e)}")
         state["progress_log"] += f"ERROR: {str(e)}\n"
         state["image_analysis"] = ""
 
@@ -44,13 +39,13 @@ def detect_description_node(state: AgentState) -> AgentState:
 
 
 def story_telling_node(state: AgentState) -> AgentState:
-    """Create a compelling historical narrative"""
-    progress_msg = "Creating historical narrative...\n"
-    state["progress_log"] = state.get("progress_log", "") + progress_msg
+    """Generate an educational cinematic story about the analyzed landmark."""
+    state["progress_log"] = state.get("progress_log", "") + "Generating educational story...\n"
+    image_analysis = state.get("image_analysis", "")
 
-    if not state.get("image_analysis"):
-        state["messages"].append("Error: No image analysis available for story creation")
-        state["progress_log"] += "ERROR: Missing image analysis\n"
+    if not image_analysis:
+        state["messages"].append("Error: No image analysis available for story creation.")
+        state["progress_log"] += "ERROR: Missing image analysis.\n"
         return state
 
     api_provider = state.get("api_provider", "openrouter")
@@ -58,23 +53,21 @@ def story_telling_node(state: AgentState) -> AgentState:
     try:
         llm = initialize_llm(api_provider)
 
-        story_telling_prompt = STORY_CREATION_PROMPT.format(
-            design_analysis=state['image_analysis']
-        )
-
+        story_prompt = f"{STORY_CREATION_PROMPT.format(design_analysis=image_analysis)}"
         messages = [
-            SystemMessage(content=story_telling_prompt),
-            HumanMessage(content="Create an engaging historical story for the detected building/landmark now.")
+            SystemMessage(content=story_prompt),
+            HumanMessage(content="Generate the educational cinematic story now.")
         ]
 
         response = llm.invoke(messages)
+        story_content = response.content.strip()
 
-        state["created_telling_story"] = response.content
-        state["messages"].append("Historical narrative created")
-        state["progress_log"] += "Story created\n"
+        state["created_telling_story"] = story_content
+        state["messages"].append("Story created successfully.")
+        state["progress_log"] += "Educational story generated.\n"
 
     except Exception as e:
-        state["messages"].append(f"Error in story creation: {str(e)}")
+        state["messages"].append(f"Story creation failed: {str(e)}")
         state["progress_log"] += f"ERROR: {str(e)}\n"
         state["created_telling_story"] = ""
 
@@ -82,97 +75,116 @@ def story_telling_node(state: AgentState) -> AgentState:
 
 
 def shots_creation_node(state: AgentState) -> AgentState:
-    """Simple reliable shot creation"""
-    print("\n=== SHOTS NODE START ===")
+    """Generate cinematic educational shots from the story."""
+    import json, re
+    from langchain.schema import SystemMessage, HumanMessage
+    from utils.llm_factory import initialize_llm
+    from prompts.templates import SHOTS_CREATION_PROMPT
 
-    # Always create some basic shots
-    state["shots_description"] = [
-        {
-            "shot_number": 1,
-            "duration_seconds": 8,
-            "shot_type": "Establishing shot",
-            "visual_description": "Wide panoramic view of the historical building in its environment",
-            "narration": state.get("created_telling_story", "This historic building stands as a testament to time.")[
-                         :200],
-            "mood": "Grand",
-            "transition": "Fade in",
-            "ai_generation_prompt": "Cinematic establishing shot of historical building, wide angle, golden hour lighting"
-        },
-        {
-            "shot_number": 2,
-            "duration_seconds": 6,
-            "shot_type": "Medium shot",
-            "visual_description": "Focus on main architectural features and facade details",
-            "narration": state.get("created_telling_story", "Its architecture tells stories of different eras.")[
-                         200:400] if len(
-                state.get("created_telling_story", "")) > 200 else "The architecture reflects its historical period.",
-            "mood": "Detailed",
-            "transition": "Cut",
-            "ai_generation_prompt": "Medium shot of historical building facade, architectural details, professional photography"
-        },
-        {
-            "shot_number": 3,
-            "duration_seconds": 5,
-            "shot_type": "Close-up",
-            "visual_description": "Detailed close-up of unique architectural elements and craftsmanship",
-            "narration": state.get("created_telling_story", "Every detail has a story to tell.")[400:600] if len(
-                state.get("created_telling_story",
-                          "")) > 400 else "Detailed craftsmanship reveals the building's history.",
-            "mood": "Intimate",
-            "transition": "Dissolve",
-            "ai_generation_prompt": "Close-up shot of historical building details, intricate stonework or features"
-        }
-    ]
+    state["progress_log"] = state.get("progress_log", "") + "Creating cinematic shots...\n"
+    story = state.get("created_telling_story", "")
 
-    state["messages"].append(f"Created {len(state['shots_description'])} basic shots")
-    state["progress_log"] += f"✓ Created {len(state['shots_description'])} shots\n"
+    if not story:
+        state["messages"].append("❌ No story available for shot creation.")
+        state["progress_log"] += "ERROR: Missing story content.\n"
+        return state
+
+    api_provider = state.get("api_provider", "openrouter")
+
+    try:
+        llm = initialize_llm(api_provider)
+        prompt = SHOTS_CREATION_PROMPT.format(
+            historical_story=story,
+            original_analysis=state.get("image_analysis", "")
+        )
+
+        messages = [
+            SystemMessage(content=prompt),
+            HumanMessage(content="Generate the cinematic shots as JSON only.")
+        ]
+
+        response = llm.invoke(messages)
+        content = response.content.strip()
+
+        # Debug: check what model returned
+        print("\n===== RAW LLM RESPONSE (shots node) =====")
+        print(content[:2000])
+        print("========================================\n")
+
+        # Extract JSON safely
+        json_match = re.search(r"\{[\s\S]*\}", content)
+        if not json_match:
+            state["messages"].append("⚠️ No valid JSON found in LLM response.")
+            state["progress_log"] += "ERROR: No JSON detected.\n"
+            return state
+
+        try:
+            parsed = json.loads(json_match.group(0))
+        except json.JSONDecodeError as e:
+            state["messages"].append(f"⚠️ JSON parse error: {e}")
+            state["progress_log"] += "ERROR: Failed to parse JSON.\n"
+            return state
+
+        shots = parsed.get("shots")
+        if not shots or not isinstance(shots, list):
+            state["messages"].append("⚠️ Parsed JSON but no shots found.")
+            state["progress_log"] += "ERROR: 'shots' key missing or empty in JSON.\n"
+            print("Parsed JSON content:", parsed)
+            return state
+
+        # Success
+        state["shots_description"] = shots
+        state["messages"].append(f"✅ Generated {len(shots)} cinematic shots.")
+        state["progress_log"] += f"Generated {len(shots)} cinematic shots successfully.\n"
+
+    except Exception as e:
+        state["messages"].append(f"❌ Shot generation failed: {e}")
+        state["progress_log"] += f"ERROR: {str(e)}\n"
 
     return state
 
-def refine_shots_node(state: AgentState) -> AgentState:
-    """Refine shots based on feedback or quality checks"""
-    progress_msg = "Refining video shots...\n"
-    state["progress_log"] = state.get("progress_log", "") + progress_msg
 
+
+def refine_shots_node(state: AgentState) -> AgentState:
+    """Refine the generated shots if feedback is available."""
+    state["progress_log"] = state.get("progress_log", "") + "Refining shots...\n"
     api_provider = state.get("api_provider", "openrouter")
     refinement_notes = state.get("refinement_notes", [])
     current_shots = state.get("shots_description", [])
     iteration_count = state.get("iteration_count", 0)
 
     if not refinement_notes or iteration_count >= 3:
-        state["messages"].append("Shots finalized (no refinement needed or max iterations reached)")
-        state["progress_log"] += "Shots finalized\n"
+        state["messages"].append("No refinement needed or max iterations reached.")
+        state["progress_log"] += "Refinement skipped.\n"
         return state
 
     if not current_shots:
-        state["messages"].append("Error: No shots to refine")
-        state["progress_log"] += "ERROR: No shots available\n"
+        state["messages"].append("Error: No shots available to refine.")
+        state["progress_log"] += "ERROR: No shots found.\n"
         return state
 
     try:
         llm = initialize_llm(api_provider)
 
         refinement_prompt = f"""
-You are refining video shots for a historical narrative.
+Refine the following cinematic shots based on the feedback provided.
+Return only valid JSON.
 
-ORIGINAL SHOTS:
+Original shots:
 {json.dumps(current_shots, indent=2)}
 
-REFINEMENT FEEDBACK:
+Feedback:
 {chr(10).join(refinement_notes)}
-
-TASK: Improve the shots based on the feedback. Return ONLY JSON.
 """
 
         messages = [
             SystemMessage(content=refinement_prompt),
-            HumanMessage(content="Refine the shots now.")
+            HumanMessage(content="Apply the refinements now.")
         ]
 
         response = llm.invoke(messages)
-
-        # Same extraction pattern
         content = response.content.strip()
+
         if "```json" in content:
             content = content.split("```json")[1].split("```")[0].strip()
         elif "```" in content:
@@ -182,23 +194,23 @@ TASK: Improve the shots based on the feedback. Return ONLY JSON.
             refined_shots = json.loads(content)
             state["shots_description"] = refined_shots.get("shots", current_shots)
             state["iteration_count"] = iteration_count + 1
-            state["messages"].append(f"Shots refined (iteration {iteration_count + 1})")
-            state["progress_log"] += f"Refinement iteration {iteration_count + 1} complete\n"
+            state["messages"].append(f"Shots refined (iteration {iteration_count + 1}).")
+            state["progress_log"] += f"Refinement {iteration_count + 1} complete.\n"
+
         except json.JSONDecodeError:
-            state["messages"].append("Refinement failed, keeping original shots")
-            state["progress_log"] += "WARNING: Refinement parse failed\n"
+            state["messages"].append("Refinement failed, keeping original shots.")
+            state["progress_log"] += "WARNING: Refinement parsing failed.\n"
 
     except Exception as e:
-        state["messages"].append(f"Error in refinement: {str(e)}")
+        state["messages"].append(f"Refinement error: {str(e)}")
         state["progress_log"] += f"ERROR: {str(e)}\n"
 
     return state
 
 
 def output_node(state: AgentState) -> AgentState:
-    """Prepare final output with all generated content"""
-    progress_msg = "Preparing final output...\n"
-    state["progress_log"] = state.get("progress_log", "") + progress_msg
+    """Prepare the final structured output of all results."""
+    state["progress_log"] = state.get("progress_log", "") + "Preparing final output...\n"
 
     final_output = {
         "building_analysis": state.get("image_analysis", ""),
@@ -210,7 +222,7 @@ def output_node(state: AgentState) -> AgentState:
     }
 
     state["final_output"] = json.dumps(final_output, indent=2)
-    state["messages"].append("Pipeline complete!")
-    state["progress_log"] += "All tasks completed successfully\n"
+    state["messages"].append("Pipeline complete.")
+    state["progress_log"] += "All tasks finished successfully.\n"
 
     return state

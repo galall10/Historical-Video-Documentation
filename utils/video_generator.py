@@ -21,31 +21,32 @@ def generate_video_with_veo(
 
     print(f"🎬 Generating video with {VEO_MODEL}...")
 
-    # Initialize the Google GenAI client
     client = genai.Client(api_key=api_key)
 
-    # Start Veo video generation
-    operation = client.models.generate_videos(
-        model=VEO_MODEL,
-        prompt=prompt,
-    )
+    # Start Veo job
+    operation = client.models.generate_videos(model=VEO_MODEL, prompt=prompt)
+    print(f"Operation ID: {operation.name}")
 
-    # Poll the operation until it finishes or times out
     elapsed = 0
     timeout = timeout_minutes * 60
 
+    # Poll until done
     while not operation.done:
         if elapsed >= timeout:
-            raise TimeoutError(f"⚠️ Timeout reached ({timeout_minutes} minutes). Generation aborted.")
-        print("⏳ Waiting for video generation to complete...")
+            raise TimeoutError(f"⚠️ Timeout reached after {timeout_minutes} minutes.")
+        print(f"⏳ Waiting... {elapsed}s")
         time.sleep(poll_interval)
         elapsed += poll_interval
-        operation = client.operations.get(operation)
+        operation = client.operations.get(name=operation.name)
 
-    # Download the generated video.
+    if not getattr(operation.response, "generated_videos", None):
+        raise RuntimeError("❌ No video generated. Maybe Veo filtered your prompt.")
+
+    # Download file
     generated_video = operation.response.generated_videos[0]
-    client.files.download(file=generated_video.video)
-    generated_video.video.save(output_path)
+    response = client.files.download(file=generated_video.video)
+    with open(output_path, "wb") as f:
+        f.write(response.read())
 
-    print(f"💾 Video saved to {output_path}")
+    print(f"✅ Video saved to {output_path}")
     return output_path

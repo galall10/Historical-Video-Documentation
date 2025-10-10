@@ -1,9 +1,8 @@
-# 1. DESCRIPTION DETECTION PROMPT
 DESCRIPTION_DETECTION_PROMPT = """
 You are an expert historian and architectural analyst with deep knowledge of historical buildings and landmarks worldwide.
 
-TASK: Analyze the provided image and identify any historical buildings, landmarks, or monuments.
-
+TASK:
+Analyze the provided image and identify any historical buildings, landmarks, or monuments.
 Provide a comprehensive analysis including:
 
 1. IDENTIFICATION
@@ -29,90 +28,128 @@ Provide a comprehensive analysis including:
    - Perspective and notable visual details
 
 If the building cannot be identified, describe visible features and infer its possible era and significance.
+
 Return structured text suitable for storytelling.
 """
 
-# 2. STORY CREATION PROMPT
-STORY_CREATION_PROMPT = """
-You are a historian and storyteller creating educational narratives for students.
 
-BUILDING ANALYSIS:
+STORY_CREATION_PROMPT = """
+You are a master historian, storyteller, and cinematic narrator specializing in historical landmarks and architectural heritage.
+
+CONTEXT INPUT:
 {design_analysis}
 
-TASK: Write a 1–2 minute story (≈300–400 words) that is engaging, cinematic, and factual.
+TASK:
+Write an engaging, historically accurate story (≈300–400 words) about the analyzed landmark.
+Your goal is to make readers *see*, *feel*, and *understand* the legacy of this place — as if they are walking through its history.
 
-The story should include:
+STRUCTURE:
 
-1. OPENING HOOK (≈30s)
-   - Introduce a captivating moment or question
-   - Set the scene vividly (time, place, atmosphere)
+1. OPENING SCENE
+   - Begin with a vivid and captivating moment that draws the reader in.
+   - Set the scene: describe the atmosphere, location, and time period.
+   - Establish tone — awe, mystery, resilience, or grandeur.
 
-2. HISTORICAL JOURNEY (≈1 min)
-   - Explain why and how the landmark was built
-   - Mention challenges, construction, and key events
-   - Include notable historical figures
-   - Describe restorations and evolution over time
+2. HISTORICAL JOURNEY
+   - Explain who built it, why, and how.
+   - Include human stories — rulers, architects, laborers, or citizens.
+   - Highlight construction challenges, major historical events, and transformations.
+   - Mention cultural, political, or spiritual significance through the ages.
+   - Use descriptive visuals that help the reader imagine the scene.
 
-3. EDUCATIONAL CLOSURE (≈30s)
-   - Reflect on the landmark's modern significance
-   - End with an inspiring and educational message
+3. LEGACY & REFLECTION
+   - Connect the landmark’s past to its meaning in the present day.
+   - Reflect on what it represents — endurance, culture, or human creativity.
+   - End with a powerful, emotionally resonant conclusion.
 
-GUIDELINES:
-- Use past tense for historical events, present tense for visuals
-- Keep tone clear, cinematic, and educational
-- Avoid jargon and ensure smooth transitions
-- Return as continuous narrative text; do not use bullet points or lists
+STYLE & GUIDELINES:
+- Use **past tense** for historical narration, **present tense** for current visuals.
+- Keep the tone **cinematic, educational, and emotionally engaging.**
+- Write as continuous, flowing prose (no lists or bullet points).
+- Focus on **clarity, imagery, and storytelling rhythm.**
+- Avoid clichés — favor authentic, sensory, and historical detail.
+- Ensure the story feels **complete and self-contained.**
+
+Return only the final written story as polished narrative text.
 """
 
-# 3. VIDEO SHOTS CREATION PROMPT
-SHOTS_CREATION_PROMPT = """
-You are a documentary director. Convert the historical story into exactly 5 cinematic shots, each representing a distinct act or event in the landmark’s history.
 
-HISTORICAL NARRATIVE:
+
+SHOTS_CREATION_PROMPT = """
+You are a cinematic director and historical visual storyteller creating a tourism documentary composed of 5 consecutive video shots.
+Each shot should depict a *distinct historical moment* the landmark has witnessed — showing human stories, emotion, and time passing — not just the structure itself.
+
+HISTORICAL STORY:
 {historical_story}
 
-BUILDING ANALYSIS:
+LANDMARK ANALYSIS:
 {original_analysis}
 
 TASK:
-- Generate exactly 5 shots corresponding to key acts or events:
-  1. Vision & Construction
-  2. Time of Greatness
-  3. Challenges & Decline
-  4. Rediscovery & Preservation
-  5. Legacy & Learning
-- Each shot = 5 seconds
-- Include for each shot: shot_number, duration_seconds, shot_type, visual_description, narration, mood, transition, ai_generation_prompt
-- Use narration directly from the story
-- Shots must show action, human activity, or changes over time — not static landmarks
-- Include a variety of shot types (wide, medium, close-up, aerial/establishing)
-- Return ONLY valid JSON with key "shots" as a list
-- Do NOT include explanations, Markdown, or extra text
+Transform the story into **exactly 5 cinematic shots** that follow a historical sequence.
+Each shot should feel like part of a continuous short film — beginning with the landmark’s creation and ending in its modern presence.
 
-OUTPUT EXAMPLE:
+STRUCTURE (chronological narrative):
+
+1. The Birth — construction or creation of the landmark.
+2. The Golden Age — a moment of prosperity, ceremony, or cultural greatness.
+3. The Trial — a time of conflict, decay, or disaster.
+4. The Renewal — restoration, rediscovery, or revival.
+5. The Present Legacy — modern-day life, tourism, and reflection.
+
+Each shot must include:
+- shot_number  
+- duration_seconds (always 8)  
+- shot_title  
+- shot_type (e.g. drone, dolly, handheld, timelapse, aerial, crane, static close-up)  
+- visual_description (describe the people, movement, atmosphere, and key elements in the frame)  
+- narration (from the historical story that aligns with this moment)  
+- mood (emotional tone: awe, tension, triumph, nostalgia, serenity, reverence)  
+- transition (fade, dissolve, match cut, etc.)  
+- ai_generation_prompt (a **detailed cinematic prompt** ready for video generation, describing:  
+  - camera movement & framing  
+  - characters & action  
+  - weather & lighting  
+  - historical time period  
+  - emotional tone  
+  - landmark’s appearance in the scene  
+  - visual atmosphere and realism cues  
+)
+
+GUIDELINES:
+- Each shot must capture an *era or turning point*, not just a static view.
+- Always show human or environmental interaction (builders, pilgrims, soldiers, restorers, tourists, etc.).
+- The landmark must remain visually consistent across shots, evolving through time.
+- Make transitions smooth and logical (like a documentary montage).
+- Build emotion gradually: awe → pride → loss → renewal → reflection.
+- Return ONLY valid JSON with the key "shots" as a list.
+- Do NOT include markdown, commentary, or extra explanations.
+
+EXAMPLE OUTPUT:
 {{
   "shots": [
     {{
       "shot_number": 1,
-      "duration_seconds": 5,
-      "shot_type": "Establishing shot",
-      "visual_description": "Pharaoh overseeing the initial construction site, workers hauling stone, dust in the sunlight...",
-      "narration": "At the dawn of its creation, the vision of the great monument began...",
-      "mood": "Epic and ambitious",
+      "duration_seconds": 8,
+      "shot_title": "The Birth of the Fortress",
+      "shot_type": "Cinematic wide establishing shot",
+      "visual_description": "Under the blazing desert sun, hundreds of workers haul limestone blocks while wooden scaffolds rise around the half-built walls...",
+      "narration": "It began in an age of kings, when ambition and faith carved stone into eternity...",
+      "mood": "Epic and determined",
       "transition": "Fade in",
-      "ai_generation_prompt": "Wide aerial shot, ancient construction site, workers, sunlight, cinematic"
+      "ai_generation_prompt": "Epic historical reenactment, sweeping drone shot over ancient builders constructing a desert fortress, dust and sunlight filtering through scaffolds, workers in linen garments, dynamic camera orbit around rising walls, warm golden hour light, cinematic realism, shallow depth of field, 4K documentary style"
     }},
     {{
       "shot_number": 2,
-      "duration_seconds": 5,
-      "shot_type": "Medium shot",
-      "visual_description": "People celebrating during the golden age, rituals and festivities around the landmark...",
-      "narration": "During its golden age, the landmark stood as a symbol of culture and power...",
-      "mood": "Festive and majestic",
+      "duration_seconds": 8,
+      "shot_title": "The Golden Age",
+      "shot_type": "Tracking shot",
+      "visual_description": "Crowds in colorful attire fill the plaza as rulers pass through triumphal gates; banners flutter in sunlight, drums echo in the distance...",
+      "narration": "At its height, it became the beating heart of celebration — where voices rose, and history sang...",
+      "mood": "Majestic and proud",
       "transition": "Cut",
-      "ai_generation_prompt": "Medium shot, people celebrating, landmark in background, daytime"
-    }},
-    ... 3 more shots for the remaining acts
+      "ai_generation_prompt": "Cinematic tracking shot through historical procession, ancient rulers walking under grand arches, flags waving, bright sunlight, ornate stone carvings, large crowd in traditional garments, joyful atmosphere, high dynamic range lighting, ultra-realistic textures, soft camera dolly movement"
+    }}
   ]
 }}
 """

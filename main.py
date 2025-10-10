@@ -3,6 +3,7 @@ from dotenv import load_dotenv
 import config
 from ui.streamlit_ui import create_interface
 
+
 # Load environment variables
 load_dotenv()
 
@@ -19,10 +20,6 @@ def main():
         print(f"  python -m streamlit run {sys.argv[0]}\n")
         sys.exit(1)
 
-    print("\nHistorical Building Video Story Generator")
-    print("-----------------------------------------")
-    print("Powered by LangGraph · Gemini · Wan (DashScope)\n")
-
     # API key status
     print("API Key Status:")
     print(f"  Gemini:     {'Set' if config.GEMINI_API_KEY else 'Not Set'}")
@@ -37,7 +34,6 @@ def main():
         print("Warning: No API keys found. Update your .env file before proceeding.\n")
 
     print("Launching Streamlit interface...\n")
-
     create_interface()
 
 

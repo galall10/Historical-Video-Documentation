@@ -303,14 +303,17 @@ def render_shots_tab(final_state, tab):
 
             # Generate any missing videos automatically
             for i, shot in enumerate(shots):
-                filename = f"shot_{i + 1}.mp4"
+                filename = f"narrated_shot_{i+1}.mp4"  # Look for narrated version first
+                if not os.path.exists(filename):
+                    filename = f"shot_{i+1}.mp4"  # Fallback to non-narrated
+
                 if not os.path.exists(filename):
                     try:
-                        st.info(f"🎬 Missing Shot {i + 1} — Generating now...")
-                        video_path, _ = generate_shot_video(shot, filename, landmark_name)
+                        st.info(f"🎬 Missing Shot {i+1} — Generating now...")
+                        video_path, _ = generate_shot_video(shot, f"shot_{i+1}.mp4", landmark_name)
                         all_videos.append(video_path)
                     except Exception as e:
-                        st.warning(f"⚠️ Failed to generate shot {i + 1}: {e}")
+                        st.warning(f"⚠️ Failed to generate shot {i+1}: {e}")
                 else:
                     all_videos.append(filename)
 
@@ -318,17 +321,47 @@ def render_shots_tab(final_state, tab):
                 st.warning("⚠️ No videos available to combine.")
                 return
 
-            # Concatenate all available clips into one
+            # Concatenate all available clips into one WITH AUDIO
             try:
                 st.info("🔄 Combining all shots into a single cinematic video...")
-                clips = [VideoFileClip(v) for v in all_videos]
+
+                # Load all clips with audio
+                clips = []
+                for video_path in all_videos:
+                    clip = VideoFileClip(video_path)
+                    # Ensure audio is preserved
+                    if clip.audio is not None:
+                        clips.append(clip)
+                    else:
+                        st.warning(f"⚠️ {video_path} has no audio track")
+                        clips.append(clip)
+
+                # Concatenate with audio preservation
                 final_clip = concatenate_videoclips(clips, method="compose")
                 output_path = "final_landmark_video.mp4"
-                final_clip.write_videofile(output_path, codec="libx264", audio_codec="aac")
-                st.success("✅ Final cinematic video ready!")
+
+                # Write with explicit audio codec
+                final_clip.write_videofile(
+                    output_path,
+                    codec="libx264",
+                    audio_codec="aac",
+                    temp_audiofile="temp-audio.m4a",
+                    remove_temp=True,
+                    fps=24  # Adjust as needed
+                )
+
+                # Clean up resources
+                for clip in clips:
+                    clip.close()
+                final_clip.close()
+
+                st.success("✅ Final cinematic video ready with full narration!")
                 st.video(output_path)
+
             except Exception as e:
                 st.error(f"❌ Failed to combine videos: {e}")
+                import traceback
+                st.error(traceback.format_exc())
 
 def render_log_tab(final_state, tab):
     with tab:

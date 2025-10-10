@@ -34,13 +34,13 @@ def create_workflow() -> StateGraph:
 
     workflow = StateGraph(AgentState)
 
-    # Existing nodes
+
     workflow.add_node("detect", detect_description_node)
     workflow.add_node("story", story_telling_node)
     workflow.add_node("shots", shots_creation_node)
     workflow.add_node("refine", refine_shots_node)
 
-    # NEW: Add narration generation node
+
     workflow.add_node("narration", narration_generation_node)
 
     workflow.add_node("output", output_node)

@@ -5,10 +5,9 @@ from PIL import Image
 import config
 from agents.workflow import create_workflow
 from utils.image_utils import image_to_base64
-from utils.video_generator import generate_video_with_wan
+from utils.video_generator import generate_video_with_veo
 import streamlit as st
-from moviepy.editor import VideoFileClip, concatenate_videoclips
-from moviepy.editor import VideoFileClip, AudioFileClip, CompositeAudioClip
+from moviepy.editor import concatenate_videoclips, VideoFileClip, AudioFileClip
 
 
 # Main APP
@@ -61,7 +60,7 @@ def render_sidebar():
         # st.divider()
         # st.subheader("⚙️ Model Settings")
         st.info(f"**LLM Model:** {config.GEMINI_MODEL}")
-        st.info(f"**Video Model:** {config.WAN_MODEL}")
+        st.info(f"**Video Model:** {config.VIDEO_MODEL}")
 
         # Usage Guide
         st.divider()
@@ -209,9 +208,8 @@ Mood: {shot.get('mood', '')}
 The landmark should appear in the background.
 Use dynamic motion, natural lighting, and realistic atmosphere.
 """
-
     # Generate video (your existing logic)
-    video_path = generate_video_with_wan(full_prompt, video_filename)  # Your function
+    video_path = generate_video_with_veo(full_prompt.strip(), video_filename)
 
     # Add narration audio if available
     audio_path = shot.get("audio_path")
@@ -243,6 +241,9 @@ Use dynamic motion, natural lighting, and realistic atmosphere.
             return video_path, audio_path
 
     return video_path, None
+
+
+
 def render_shots_tab(final_state, tab):
     with tab:
         st.subheader("🎥 Video Shot Breakdown")
@@ -271,6 +272,7 @@ def render_shots_tab(final_state, tab):
 
                 # Generate button
                 video_filename = f"shot_{i + 1}.mp4"
+
 
                 if st.button(f"🎞️ Generate Video with Narration for Shot {i + 1}", key=f"gen_{i}"):
                     try:

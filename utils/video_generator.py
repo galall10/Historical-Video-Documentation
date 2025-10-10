@@ -1,78 +1,51 @@
 import os
 import time
-import requests
-from http import HTTPStatus
-from dashscope import VideoSynthesis
-import dashscope
-from config import WAN_MODEL
+from google import genai
+from config import VEO_MODEL
 
 
-# CONFIGURATION
-dashscope.base_http_api_url = "https://dashscope-intl.aliyuncs.com/api/v1"
-
-
-# MAIN FUNCTION
-def generate_video_with_wan(
+def generate_video_with_veo(
     prompt: str,
     output_path: str = "generated_video.mp4",
-    size: str = "832*480",
-    retries: int = 3,
-    wait_between_retries: int = 3
+    poll_interval: int = 10,
+    timeout_minutes: int = 10
 ):
-    api_key = os.getenv("DASHSCOPE_API_KEY")
+    """
+    Generates a cinematic video using Google's Veo model (veo-3.0-generate-001).
+    Saves the final video to `output_path` and returns its path.
+    """
+
+    api_key = os.getenv("GOOGLE_API_KEY")
     if not api_key:
-        raise EnvironmentError("❌ DASHSCOPE_API_KEY not found. Please add it to your .env file.")
+        raise EnvironmentError("❌ GOOGLE_API_KEY not found. Please add it to your .env file.")
 
-    print(f"🎬 Generating video with {WAN_MODEL}...")
-    print(f"🧠 Prompt: {prompt[:120]}{'...' if len(prompt) > 120 else ''}")
-    print(f"📐 Target size: {size}")
+    print(f"🎬 Generating video with {VEO_MODEL}...")
 
-    # Send generation request
-    rsp = VideoSynthesis.call(
-        api_key=api_key,
-        model=WAN_MODEL,
+    # Initialize the Google GenAI client
+    client = genai.Client(api_key=api_key)
+
+    # Start Veo video generation
+    operation = client.models.generate_videos(
+        model=VEO_MODEL,
         prompt=prompt,
-        prompt_extend=True,
-        size=size,
-        negative_prompt="",
-        watermark=False,
-        seed=12345
     )
 
-    if rsp.status_code != HTTPStatus.OK:
-        raise RuntimeError(
-            f"❌ Video generation failed.\n"
-            f"Status Code: {rsp.status_code}\n"
-            f"Error Code: {rsp.code}\n"
-            f"Message: {rsp.message}"
-        )
+    # Poll the operation until it finishes or times out
+    elapsed = 0
+    timeout = timeout_minutes * 60
 
-    video_url = getattr(rsp.output, "video_url", None)
-    if not video_url:
-        raise RuntimeError("⚠️ No video URL returned by DashScope API.")
+    while not operation.done:
+        if elapsed >= timeout:
+            raise TimeoutError(f"⚠️ Timeout reached ({timeout_minutes} minutes). Generation aborted.")
+        print("⏳ Waiting for video generation to complete...")
+        time.sleep(poll_interval)
+        elapsed += poll_interval
+        operation = client.operations.get(operation)
 
-    print("✅ Video generated successfully!")
-    print("🔗 Video URL:", video_url)
+    # Download the generated video.
+    generated_video = operation.response.generated_videos[0]
+    client.files.download(file=generated_video.video)
+    generated_video.video.save(output_path)
 
-    # Attempt to download the video file
-    for attempt in range(1, retries + 1):
-        try:
-            print(f"⬇️ Downloading video (attempt {attempt}/{retries})...")
-            response = requests.get(video_url, timeout=60)
-            response.raise_for_status()
-
-            with open(output_path, "wb") as f:
-                f.write(response.content)
-
-            print(f"💾 Video saved to {output_path}")
-            return output_path
-
-        except Exception as e:
-            print(f"⚠️ Download attempt {attempt} failed: {e}")
-            if attempt < retries:
-                print(f"⏳ Retrying in {wait_between_retries} seconds...")
-                time.sleep(wait_between_retries)
-            else:
-                raise RuntimeError(f"❌ Failed to download video after {retries} attempts: {e}")
-
-    raise RuntimeError("❌ Unknown error: Video generation process did not complete successfully.")
+    print(f"💾 Video saved to {output_path}")
+    return output_path

@@ -38,6 +38,40 @@ def detect_description_node(state: AgentState) -> AgentState:
     return state
 
 
+def extract_landmark_name_node(state: AgentState) -> AgentState:
+    """Extract the landmark name from the image analysis text."""
+    state["progress_log"] = state.get("progress_log", "") + "Extracting landmark name...\n"
+    image_analysis = state.get("image_analysis", "")
+
+    if not image_analysis:
+        state["messages"].append("Error: No image analysis available to extract landmark name.")
+        state["progress_log"] += "ERROR: Missing image analysis for name extraction.\n"
+        state["landmark_name"] = "Unknown"
+        return state
+
+    try:
+        llm = initialize_llm()
+        prompt = LANDMARK_NAME_EXTRACTION_PROMPT.format(image_analysis=image_analysis)
+        messages = [
+            SystemMessage(content="You are a text analysis expert."),
+            HumanMessage(content=prompt)
+        ]
+
+        response = llm.invoke(messages)
+        landmark_name = response.content.strip()
+
+        state["landmark_name"] = landmark_name if landmark_name else "Unknown"
+        state["messages"].append(f"Landmark name extracted: {landmark_name}")
+        state["progress_log"] += f"Landmark name found: {landmark_name}\n"
+
+    except Exception as e:
+        state["messages"].append(f"Landmark name extraction failed: {str(e)}")
+        state["progress_log"] += f"ERROR during name extraction: {str(e)}\n"
+        state["landmark_name"] = "Unknown"
+
+    return state
+
+
 def story_telling_node(state: AgentState) -> AgentState:
     """Generate an educational cinematic story about the analyzed landmark."""
     state["progress_log"] = state.get("progress_log", "") + "Generating educational story...\n"

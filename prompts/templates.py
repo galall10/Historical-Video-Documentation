@@ -117,3 +117,21 @@ OUTPUT EXAMPLE:
 }}
 """
 
+
+# 4. LANDMARK NAME EXTRACTION PROMPT
+LANDMARK_NAME_EXTRACTION_PROMPT = """
+You are a text analysis expert. Your task is to extract the name of the landmark from the provided text.
+
+ANALYSIS TEXT:
+{image_analysis}
+
+TASK:
+- Read the text and identify the name of the historical landmark.
+- Return ONLY the name of the landmark.
+- If no specific landmark name is found, return "Unknown".
+
+EXAMPLE:
+- Input: "The Eiffel Tower is a wrought-iron lattice tower on the Champ de Mars in Paris, France."
+- Output: "Eiffel Tower"
+"""
+

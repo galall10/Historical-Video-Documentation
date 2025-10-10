@@ -6,7 +6,8 @@ from PIL import Image
 import config
 from agents.workflow import create_workflow
 from utils.image_utils import image_to_base64
-from utils.video_generator import generate_video_with_wan
+from utils.video_generator import generate_video_with_wan, generate_or_get_cached_video, get_video_cache_info, clear_video_cache
+from utils.recommendation import load_landmarks, get_recommendations
 
 
 # Main APP
@@ -59,24 +60,42 @@ def render_sidebar():
         st.subheader("🧠 AI Provider")
         st.info("**Provider:** Gemini")
 
-        # Model Info
         st.divider()
         st.subheader("⚙️ Model Settings")
         st.info(f"**Model:** {config.GEMINI_MODEL}")
         st.info(f"**Max Iterations:** {config.MAX_ITERATIONS}")
 
+        # Video Cache Management
+        st.divider()
+        st.subheader("💾 Video Cache")
+        cache_info = get_video_cache_info()
+        if cache_info:
+            col1, col2 = st.columns(2)
+            with col1:
+                st.metric("Cached Videos", cache_info.get("total_videos", 0))
+            with col2:
+                st.metric("Unique Landmarks", cache_info.get("unique_landmarks", 0))
+
+            if st.button("🗑️ Clear All Cache", type="secondary"):
+                if clear_video_cache():
+                    st.success("✅ Cache cleared successfully!")
+                    st.experimental_rerun()
+                else:
+                    st.error("❌ Failed to clear cache")
+        else:
+            st.info("💾 Video cache not available")
+
         # Usage Guide
         st.divider()
         st.subheader("📘 Quick Guide")
         st.markdown("""
-        1. **Upload** a landmark image  
-        2. **Analyze** its architecture and story  
-        3. **Generate** cinematic shots  
+        1. **Upload** a landmark image
+        2. **Analyze** its architecture and story
+        3. **Generate** cinematic shots
         4. **Preview or render** video segments
         """)
 
     return "gemini"
-
 
 # def validate_api_keys():
 #     key = config.GEMINI_API_KEY
@@ -156,15 +175,16 @@ def render_results():
 
     st.divider()
     st.header("📊 Results Overview")
-    tabs = st.tabs(["📋 Summary", "🏛️ Analysis", "📖 Story", "🎥 Video Shots", "📝 Log", "🐛 Debug"])
+    tabs = st.tabs(["📋 Summary", "🏛️ Analysis", "📖 Story", "🎥 Video Shots", "📍 Recommendations", "📝 Log", "🐛 Debug"])
     final_state = st.session_state.final_state
 
     render_summary_tab(final_state, tabs[0])
     render_analysis_tab(final_state, tabs[1])
     render_story_tab(final_state, tabs[2])
     render_shots_tab(final_state, tabs[3])
-    render_log_tab(final_state, tabs[4])
-    # render_debug_tab(final_state, tabs[5])
+    render_recommendations_tab(final_state, tabs[4])
+    render_log_tab(final_state, tabs[5])
+    # render_debug_tab(final_state, tabs[6])
 
 
 def render_summary_tab(final_state, tab):
@@ -230,17 +250,78 @@ Use dynamic motion, natural light, and atmosphere.
                 if st.button(f"🎞️ Generate Video for Shot {i+1}", key=f"gen_{i}"):
                     try:
                         st.info("⏳ Generating video...")
-                        video_path = generate_video_with_wan(full_prompt.strip(), f"shot_{i+1}.mp4")
+                        landmark_name = final_state.get("landmark_name", f"shot_{i+1}")
+
+                        # Use caching system
+                        video_path, was_cached = generate_or_get_cached_video(
+                            landmark_name=landmark_name,
+                            prompt=full_prompt.strip(),
+                            story_type=f"shot_{i+1}",
+                            size="832*480",
+                            force_regenerate=False
+                        )
+
+                        if was_cached:
+                            st.info("✅ Using cached video!")
+                        else:
+                            st.success("✅ New video generated!")
+
                         if os.path.exists(video_path):
-                            st.success("✅ Video ready!")
                             st.video(video_path)
+                            st.download_button(
+                                "📥 Download Video",
+                                data=open(video_path, 'rb').read(),
+                                file_name=f"landmark_shot_{i+1}.mp4",
+                                mime="video/mp4",
+                                key=f"download_{i}"
+                            )
                         else:
                             st.error("Video file missing.")
+
                     except Exception as e:
                         st.error(f"Failed: {e}")
 
         st.download_button("📥 Download Shots JSON", json.dumps(shots, indent=2), "shots.json")
 
+
+
+def render_recommendations_tab(final_state, tab):
+    with tab:
+        st.subheader("📍 Nearby Landmark Recommendations")
+        landmark_name = final_state.get("landmark_name", "").strip()
+        if not landmark_name:
+            st.warning("Landmark name not found in analysis. Cannot provide recommendations.")
+            return
+
+        st.info(f"Recommendations based on detected landmark: **{landmark_name}**")
+
+        landmarks_df = load_landmarks()
+        if landmarks_df.empty:
+            st.error("Landmark dataset is empty or could not be loaded.")
+            return
+
+        recommendations_df = get_recommendations(landmark_name, landmarks_df, top_n=10)
+        if recommendations_df.empty:
+            st.info("No recommendations available for this landmark. It might not be in our dataset.")
+            return
+
+        # Category filter
+        available_categories = recommendations_df['category'].unique().tolist()
+        selected_categories = st.multiselect(
+            "Filter by category:",
+            options=available_categories,
+            default=available_categories
+        )
+
+        if selected_categories:
+            filtered_recommendations = recommendations_df[recommendations_df['category'].isin(selected_categories)]
+            # Reset index to remove the default numbering column
+            filtered_recommendations = filtered_recommendations.reset_index(drop=True)
+            st.dataframe(filtered_recommendations, use_container_width=True, hide_index=True)
+        else:
+            # Reset index to remove the default numbering column
+            recommendations_df = recommendations_df.reset_index(drop=True)
+            st.dataframe(recommendations_df, use_container_width=True, hide_index=True)
 
 
 def render_log_tab(final_state, tab):

@@ -2,6 +2,7 @@ import sys
 from dotenv import load_dotenv
 import config
 from ui.streamlit_ui import create_interface
+from utils.database import connect_to_db
 
 # Load environment variables
 load_dotenv()
@@ -40,6 +41,9 @@ def main():
         print("Warning: No API keys found. Update your .env file before proceeding.\n")
 
     print("Launching Streamlit interface...\n")
+
+    # Initialize database connection
+    connect_to_db()
 
     create_interface()
 

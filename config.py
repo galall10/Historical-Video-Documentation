@@ -9,6 +9,7 @@ GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "")
 DASHSCOPE_API_KEY = os.getenv("DASHSCOPE_API_KEY", "")
 WAN_API_KEY = os.getenv("WAN_API_KEY", "")
+MONGO_URI = os.getenv("MONGO_URI", "mongodb://localhost:27017/")
 
 # Model configurations
 GEMINI_MODEL = "gemini-2.0-flash"

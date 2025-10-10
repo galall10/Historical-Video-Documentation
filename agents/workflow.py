@@ -2,6 +2,7 @@ from langgraph.graph import StateGraph, END
 from models.state import AgentState
 from agents.nodes import (
     detect_description_node,
+    extract_landmark_name_node,
     story_telling_node,
     shots_creation_node,
     refine_shots_node,
@@ -41,6 +42,9 @@ def create_workflow() -> StateGraph:
     # Extracts historical and visual details from input image
     workflow.add_node("detect", detect_description_node)
 
+    # --- Extracts the landmark name from the analysis ---
+    workflow.add_node("extract_landmark_name", extract_landmark_name_node)
+
     # --- Stage 2: Story Creation ---
     # Generates educational story using the historical context
     workflow.add_node("story", story_telling_node)
@@ -59,7 +63,8 @@ def create_workflow() -> StateGraph:
 
     # --- Define Flow ---
     workflow.set_entry_point("detect")
-    workflow.add_edge("detect", "story")
+    workflow.add_edge("detect", "extract_landmark_name")
+    workflow.add_edge("extract_landmark_name", "story")
     workflow.add_edge("story", "shots")
 
     # Conditional branching between refinement and output

@@ -1,6 +1,12 @@
 """
 LLM factory for initializing Gemini model
 """
+import os
+import sys
+
+# Add the parent directory to Python path for imports
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 from langchain_google_genai import ChatGoogleGenerativeAI
 import config
 

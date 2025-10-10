@@ -13,6 +13,7 @@ class AgentState(TypedDict):
 
     # Processing stages
     image_analysis: str        # Historical and architectural analysis
+    landmark_name: str         # Name of the detected landmark
     created_telling_story: str # Generated educational narrative
     shots_description: List[Dict[str, Any]]  # List of generated video shots
 

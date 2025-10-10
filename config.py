@@ -1,50 +1,52 @@
 import os
 from dotenv import load_dotenv
 
-# Load environment variables
+# Load Environment Variables
 load_dotenv()
 
-# API keys
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
-OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "")
+# API Keys
+GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY", "")
+GEMINI_API_KEY = GOOGLE_API_KEY or os.getenv("GEMINI_API_KEY", "")
 DASHSCOPE_API_KEY = os.getenv("DASHSCOPE_API_KEY", "")
 WAN_API_KEY = os.getenv("WAN_API_KEY", "")
 MONGO_URI = os.getenv("MONGO_URI", "mongodb://localhost:27017/")
 
-# Model configurations
+# Expose Google API key for genai client (required by google-genai SDK)
+if GOOGLE_API_KEY:
+    os.environ["GOOGLE_API_KEY"] = GOOGLE_API_KEY
+
+# Model Configuration
 GEMINI_MODEL = "gemini-2.0-flash"
-OPENROUTER_MODEL = "meta-llama/llama-4-maverick:free"
-WAN_MODEL = "wan2.5-t2v"  # stable release, not preview
+WAN_MODEL = "wan2.1-t2v-turbo"        # Alibaba DashScope
+VEO_MODEL = "veo-3.0-generate-001"    # Google Veo
 
-# Feature flags
-USE_WAN = True          # Enable Wan for text-to-video generation
-USE_GEMINI = True       # Enable Gemini for narration and text generation
-USE_OPENROUTER = False  # Optional fallback for text generation
-
-# Processing parameters
-MAX_ITERATIONS = 2
+VIDEO_MODEL = VEO_MODEL
 
 
 def validate_config():
     """Check for valid API keys and print configuration summary."""
-    has_keys = any([GEMINI_API_KEY, OPENROUTER_API_KEY, DASHSCOPE_API_KEY])
+    print("\n=== Configuration Summary ===")
+    print("-----------------------------")
 
-    print("\nConfiguration Summary:")
-    print("----------------------")
+    keys_status = {
+        "Google / Gemini API Key": bool(GOOGLE_API_KEY),
+        "DashScope API Key": bool(DASHSCOPE_API_KEY),
+        "WAN API Key": bool(WAN_API_KEY),
+        "MongoDB URI": bool(MONGO_URI),
+    }
 
-    if not has_keys:
-        print("Warning: No valid API keys found. Update your .env file.")
+    for key, exists in keys_status.items():
+        print(f"{key}: {'✅ Found' if exists else '⚠️ Missing'}")
+
+    if not any(keys_status.values()):
+        print("❌ No valid API keys found — please update your .env file.")
         return False
 
-    if USE_WAN:
-        print(f"Wan model:      {WAN_MODEL}")
-    if USE_GEMINI:
-        print(f"Gemini model:   {GEMINI_MODEL}")
-    if USE_OPENROUTER:
-        print(f"OpenRouter:     {OPENROUTER_MODEL}")
-
-    print(f"Max iterations: {MAX_ITERATIONS}\n")
+    print(f"\n🎬 Active Video Model: {VIDEO_MODEL}")
+    print(f"🧠 Active LLM Model: {GEMINI_MODEL}")
+    print("-----------------------------\n")
     return True
 
 
+# Validate configuration automatically
 validate_config()

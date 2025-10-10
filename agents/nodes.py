@@ -3,7 +3,52 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from models.state import AgentState
 from utils.llm_factory import initialize_llm
 from prompts.templates import *
+import asyncio
+import edge_tts
+import os
 
+
+async def generate_narration_audio(text: str, output_path: str, voice: str = "en-GB-RyanNeural"):
+    """Generate audio narration using Edge TTS."""
+    communicate = edge_tts.Communicate(text, voice)
+    await communicate.save(output_path)
+
+
+def narration_generation_node(state: AgentState) -> AgentState:
+    """Generate audio narration for each shot using Edge TTS."""
+    state["progress_log"] = state.get("progress_log", "") + "Generating narrations...\n"
+    shots = state.get("shots_description", [])
+
+    if not shots:
+        state["messages"].append("Error: No shots available for narration.")
+        state["progress_log"] += "ERROR: Missing shots.\n"
+        return state
+
+    os.makedirs("narrations", exist_ok=True)
+
+    try:
+        for i, shot in enumerate(shots):
+            narration_text = shot.get("narration", "")
+            if not narration_text:
+                state["messages"].append(f"Warning: Shot {i + 1} has no narration text.")
+                continue
+
+            audio_path = f"narrations/shot_{i + 1}_narration.mp3"
+
+            # Run async function in sync context
+            asyncio.run(generate_narration_audio(narration_text, audio_path))
+
+            # Store audio path in shot data
+            shot["audio_path"] = audio_path
+
+        state["messages"].append(f"✅ Generated {len(shots)} narration audio files.")
+        state["progress_log"] += "Narration generation complete.\n"
+
+    except Exception as e:
+        state["messages"].append(f"Narration generation failed: {str(e)}")
+        state["progress_log"] += f"ERROR: {str(e)}\n"
+
+    return state
 
 def detect_description_node(state: AgentState) -> AgentState:
     """Analyze the image and extract historical, architectural, and cultural context."""
@@ -180,7 +225,6 @@ def shots_creation_node(state: AgentState) -> AgentState:
 def refine_shots_node(state: AgentState) -> AgentState:
     """Refine the generated shots if feedback is available."""
     state["progress_log"] = state.get("progress_log", "") + "Refining shots...\n"
-    api_provider = state.get("api_provider", "openrouter")
     refinement_notes = state.get("refinement_notes", [])
     current_shots = state.get("shots_description", [])
     iteration_count = state.get("iteration_count", 0)

@@ -1,18 +1,19 @@
 import os
 import json
 import time
-import streamlit as st
 from PIL import Image
 import config
 from agents.workflow import create_workflow
 from utils.image_utils import image_to_base64
-from utils.video_generator import generate_video_with_wan, generate_or_get_cached_video, get_video_cache_info, clear_video_cache
+from utils.video_generator import generate_video_with_veo, generate_or_get_cached_video, get_video_cache_info, clear_video_cache
 from utils.recommendation import load_landmarks, get_recommendations
+import streamlit as st
+from moviepy.editor import concatenate_videoclips, VideoFileClip, AudioFileClip
 
 
 # Main APP
 def create_interface():
-    st.set_page_config(page_title="AI Tour Historian", page_icon="🏛️", layout="wide")
+    st.set_page_config(page_title="HistoTales", page_icon="🏛️", layout="wide")
     st.markdown("""
         <style>
         .stProgress > div > div > div > div {background-color: #1f77b4;}
@@ -56,14 +57,11 @@ def render_sidebar():
     with st.sidebar:
         st.header("⚙️ Configuration")
 
-        # AI Provider
-        st.subheader("🧠 AI Provider")
-        st.info("**Provider:** Gemini")
-
-        st.divider()
-        st.subheader("⚙️ Model Settings")
-        st.info(f"**Model:** {config.GEMINI_MODEL}")
-        st.info(f"**Max Iterations:** {config.MAX_ITERATIONS}")
+        # Model Info
+        # st.divider()
+        # st.subheader("⚙️ Model Settings")
+        st.info(f"**LLM Model:** {config.GEMINI_MODEL}")
+        st.info(f"**Video Model:** {config.VIDEO_MODEL}")
 
         # Video Cache Management
         st.divider()
@@ -96,6 +94,7 @@ def render_sidebar():
         """)
 
     return "gemini"
+
 
 # def validate_api_keys():
 #     key = config.GEMINI_API_KEY
@@ -219,71 +218,186 @@ def render_story_tab(final_state, tab):
             st.download_button("📥 Download", story, "story.txt")
 
 
+def generate_shot_video(shot, video_filename, landmark_name):
+    """Generate video with narration audio layered on top using caching system."""
+
+    # Build full prompt for video generation
+    full_prompt = f"""
+Cinematic reenactment of {landmark_name}.
+Scene Title: {shot.get('shot_title', '')}
+Visual: {shot.get('visual_description', '')}
+Mood: {shot.get('mood', '')}
+The landmark should appear in the background.
+Use dynamic motion, natural lighting, and realistic atmosphere.
+"""
+
+    # Use caching system
+    video_path, was_cached = generate_or_get_cached_video(
+        landmark_name=landmark_name,
+        prompt=full_prompt.strip(),
+        story_type=f"shot_{shot.get('shot_title', 'unknown')}",
+        size="832*480",
+        force_regenerate=False
+    )
+
+    if was_cached:
+        print(f"Using cached video for {landmark_name}")
+    else:
+        print(f"Generated new video for {landmark_name}")
+
+    # Add narration audio if available
+    audio_path = shot.get("audio_path")
+    if audio_path and os.path.exists(audio_path):
+        try:
+            video_clip = VideoFileClip(video_path)
+            audio_clip = AudioFileClip(audio_path)
+
+            # Composite the audio onto the video
+            video_with_audio = video_clip.set_audio(audio_clip)
+
+            # Save the new video
+            output_path = f"narrated_{video_filename}"
+            video_with_audio.write_videofile(
+                output_path,
+                codec="libx264",
+                audio_codec="aac"
+            )
+
+            # Clean up
+            video_clip.close()
+            audio_clip.close()
+            video_with_audio.close()
+
+            return output_path, audio_path
+
+        except Exception as e:
+            print(f"Warning: Could not add narration to video: {e}")
+            return video_path, audio_path
+
+    return video_path, None
+
+
+
 def render_shots_tab(final_state, tab):
     with tab:
         st.subheader("🎥 Video Shot Breakdown")
+
         shots = final_state.get("shots_description", [])
         if not shots:
-            st.info("No shots generated."); return
+            st.info("No shots generated yet.")
+            return
 
         st.info(f"Total shots: {len(shots)}")
+        landmark_name = final_state.get("landmark_name", "a historical landmark")
 
         for i, shot in enumerate(shots):
-            with st.expander(f"🎬 {shot.get('shot_title', f'Shot {i+1}')}", expanded=False):
+            with st.expander(f"🎬 {shot.get('shot_title', f'Shot {i + 1}')}", expanded=False):
                 st.markdown(f"**Visual:** {shot.get('visual_description', 'N/A')}")
                 st.markdown(f"**Narration:** {shot.get('narration', 'N/A')}")
                 st.markdown(f"**Mood:** {shot.get('mood', 'N/A')} | **Transition:** {shot.get('transition', 'N/A')}")
 
-                # Build full cinematic prompt for video
-                full_prompt = f"""
-Cinematic reenactment of {final_state.get('landmark_name', 'a historical landmark')}.
-Scene Title: {shot.get('shot_title', '')}
-Visual: {shot.get('visual_description', '')}
-Narration: "{shot.get('narration', '')}"
-Mood: {shot.get('mood', '')}
-The landmark should appear in the scene background.
-Use dynamic motion, natural light, and atmosphere.
-"""
+                # Show audio status
+                audio_path = shot.get("audio_path")
+                if audio_path and os.path.exists(audio_path):
+                    st.success("🔊 Narration audio ready")
+                    st.audio(audio_path)
+                else:
+                    st.warning("⚠️ No narration audio generated")
 
-                # st.code(full_prompt, language=None)
+                # Generate button
+                video_filename = f"shot_{i + 1}.mp4"
 
-                if st.button(f"🎞️ Generate Video for Shot {i+1}", key=f"gen_{i}"):
+
+                if st.button(f"🎞️ Generate Video with Narration for Shot {i + 1}", key=f"gen_{i}"):
                     try:
-                        st.info("⏳ Generating video...")
-                        landmark_name = final_state.get("landmark_name", f"shot_{i+1}")
+                        st.info(f"⏳ Generating video with narration for Shot {i + 1}...")
+                        video_path, audio_used = generate_shot_video(shot, video_filename, landmark_name)
 
-                        # Use caching system
-                        video_path, was_cached = generate_or_get_cached_video(
-                            landmark_name=landmark_name,
-                            prompt=full_prompt.strip(),
-                            story_type=f"shot_{i+1}",
-                            size="832*480",
-                            force_regenerate=False
-                        )
-
-                        if was_cached:
-                            st.info("✅ Using cached video!")
+                        if audio_used:
+                            st.success(f"✅ Shot {i + 1} ready with narration!")
                         else:
-                            st.success("✅ New video generated!")
+                            st.success(f"✅ Shot {i + 1} ready (no audio)")
 
-                        if os.path.exists(video_path):
-                            st.video(video_path)
-                            st.download_button(
-                                "📥 Download Video",
-                                data=open(video_path, 'rb').read(),
-                                file_name=f"landmark_shot_{i+1}.mp4",
-                                mime="video/mp4",
-                                key=f"download_{i}"
-                            )
-                        else:
-                            st.error("Video file missing.")
-
+                        st.video(video_path)
                     except Exception as e:
-                        st.error(f"Failed: {e}")
+                        st.error(f"❌ Failed: {e}")
 
-        st.download_button("📥 Download Shots JSON", json.dumps(shots, indent=2), "shots.json")
+        # Download Shots JSON
+        st.download_button(
+            "📥 Download Shots JSON",
+            json.dumps(shots, indent=2),
+            "shots.json",
+            mime="application/json"
+        )
 
+        # Combine all generated shots into a single cinematic video
+        st.divider()
+        st.subheader("🎞️ Combine All Shots into One Final Video")
 
+        if st.button("🚀 Generate Final Full Video", type="primary"):
+            all_videos = []
+
+            # Generate any missing videos automatically
+            for i, shot in enumerate(shots):
+                filename = f"narrated_shot_{i+1}.mp4"  # Look for narrated version first
+                if not os.path.exists(filename):
+                    filename = f"shot_{i+1}.mp4"  # Fallback to non-narrated
+
+                if not os.path.exists(filename):
+                    try:
+                        st.info(f"🎬 Missing Shot {i+1} — Generating now...")
+                        video_path, _ = generate_shot_video(shot, f"shot_{i+1}.mp4", landmark_name)
+                        all_videos.append(video_path)
+                    except Exception as e:
+                        st.warning(f"⚠️ Failed to generate shot {i+1}: {e}")
+                else:
+                    all_videos.append(filename)
+
+            if not all_videos:
+                st.warning("⚠️ No videos available to combine.")
+                return
+
+            # Concatenate all available clips into one WITH AUDIO
+            try:
+                st.info("🔄 Combining all shots into a single cinematic video...")
+
+                # Load all clips with audio
+                clips = []
+                for video_path in all_videos:
+                    clip = VideoFileClip(video_path)
+                    # Ensure audio is preserved
+                    if clip.audio is not None:
+                        clips.append(clip)
+                    else:
+                        st.warning(f"⚠️ {video_path} has no audio track")
+                        clips.append(clip)
+
+                # Concatenate with audio preservation
+                final_clip = concatenate_videoclips(clips, method="compose")
+                output_path = "final_landmark_video.mp4"
+
+                # Write with explicit audio codec
+                final_clip.write_videofile(
+                    output_path,
+                    codec="libx264",
+                    audio_codec="aac",
+                    temp_audiofile="temp-audio.m4a",
+                    remove_temp=True,
+                    fps=24  # Adjust as needed
+                )
+
+                # Clean up resources
+                for clip in clips:
+                    clip.close()
+                final_clip.close()
+
+                st.success("✅ Final cinematic video ready with full narration!")
+                st.video(output_path)
+
+            except Exception as e:
+                st.error(f"❌ Failed to combine videos: {e}")
+                import traceback
+                st.error(traceback.format_exc())
 
 def render_recommendations_tab(final_state, tab):
     with tab:
@@ -322,7 +436,6 @@ def render_recommendations_tab(final_state, tab):
             # Reset index to remove the default numbering column
             recommendations_df = recommendations_df.reset_index(drop=True)
             st.dataframe(recommendations_df, use_container_width=True, hide_index=True)
-
 
 def render_log_tab(final_state, tab):
     with tab:

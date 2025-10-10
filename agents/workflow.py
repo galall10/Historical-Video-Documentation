@@ -5,6 +5,7 @@ from agents.nodes import (
     story_telling_node,
     shots_creation_node,
     refine_shots_node,
+    narration_generation_node,
     output_node
 )
 
@@ -26,53 +27,44 @@ def should_refine(state: AgentState) -> str:
     return "refine"
 
 
-# Workflow Creation
 def create_workflow() -> StateGraph:
     """
-    Builds and compiles the storytelling generation pipeline.
-
-    Returns:
-        Compiled LangGraph workflow ready for execution.
+    Builds and compiles the storytelling generation pipeline with narration.
     """
 
     workflow = StateGraph(AgentState)
 
-    # --- Stage 1: Image/Scene Understanding ---
-    # Extracts historical and visual details from input image
+    # Existing nodes
     workflow.add_node("detect", detect_description_node)
-
-    # --- Stage 2: Story Creation ---
-    # Generates educational story using the historical context
     workflow.add_node("story", story_telling_node)
-
-    # --- Stage 3: Cinematic Shot Breakdown ---
-    # Converts story into visual shots for video generation
     workflow.add_node("shots", shots_creation_node)
-
-    # --- Stage 4: Optional Refinement ---
-    # Refines the shots based on feedback or iteration notes
     workflow.add_node("refine", refine_shots_node)
 
-    # --- Stage 5: Final Output ---
-    # Packages all results for video generation or export
+    # NEW: Add narration generation node
+    workflow.add_node("narration", narration_generation_node)
+
     workflow.add_node("output", output_node)
 
-    # --- Define Flow ---
+    # Define Flow
     workflow.set_entry_point("detect")
     workflow.add_edge("detect", "story")
     workflow.add_edge("story", "shots")
 
-    # Conditional branching between refinement and output
+    # Conditional branching
     workflow.add_conditional_edges(
         "shots",
         should_refine,
         {
             "refine": "refine",
-            "output": "output"
+            "output": "narration"  # Go to narration instead of output
         }
     )
 
-    workflow.add_edge("refine", "output")
+    # After refinement, generate narrations
+    workflow.add_edge("refine", "narration")
+
+    # Narration goes to output
+    workflow.add_edge("narration", "output")
     workflow.add_edge("output", END)
 
     return workflow.compile()

@@ -8,7 +8,7 @@ from utils.image_utils import image_to_base64
 from utils.video_generator import generate_video_with_wan
 import streamlit as st
 from moviepy.editor import VideoFileClip, concatenate_videoclips
-
+from moviepy.editor import VideoFileClip, AudioFileClip, CompositeAudioClip
 
 
 # Main APP
@@ -197,30 +197,52 @@ def render_story_tab(final_state, tab):
             st.download_button("📥 Download", story, "story.txt")
 
 
+def generate_shot_video(shot, video_filename, landmark_name):
+    """Generate video with narration audio layered on top."""
 
-def generate_shot_video(shot, filename, landmark_name="a historical landmark"):
-    """
-    Generates a single cinematic shot video using the AI video generator.
-    Returns the path to the generated video and the used prompt.
-    """
+    # Your existing video generation code here
     full_prompt = f"""
 Cinematic reenactment of {landmark_name}.
 Scene Title: {shot.get('shot_title', '')}
 Visual: {shot.get('visual_description', '')}
-Narration: "{shot.get('narration', '')}"
 Mood: {shot.get('mood', '')}
 The landmark should appear in the background.
 Use dynamic motion, natural lighting, and realistic atmosphere.
 """
 
-    video_path = generate_video_with_wan(full_prompt.strip(), filename)
+    # Generate video (your existing logic)
+    video_path = generate_video_with_wan(full_prompt, video_filename)  # Your function
 
-    if os.path.exists(video_path):
-        return video_path, full_prompt
-    else:
-        raise FileNotFoundError(f"Video generation failed: {filename}")
+    # Add narration audio if available
+    audio_path = shot.get("audio_path")
+    if audio_path and os.path.exists(audio_path):
+        try:
+            video_clip = VideoFileClip(video_path)
+            audio_clip = AudioFileClip(audio_path)
 
+            # Composite the audio onto the video
+            video_with_audio = video_clip.set_audio(audio_clip)
 
+            # Save the new video
+            output_path = f"narrated_{video_filename}"
+            video_with_audio.write_videofile(
+                output_path,
+                codec="libx264",
+                audio_codec="aac"
+            )
+
+            # Clean up
+            video_clip.close()
+            audio_clip.close()
+            video_with_audio.close()
+
+            return output_path, audio_path
+
+        except Exception as e:
+            print(f"Warning: Could not add narration to video: {e}")
+            return video_path, audio_path
+
+    return video_path, None
 def render_shots_tab(final_state, tab):
     with tab:
         st.subheader("🎥 Video Shot Breakdown")
@@ -233,37 +255,34 @@ def render_shots_tab(final_state, tab):
         st.info(f"Total shots: {len(shots)}")
         landmark_name = final_state.get("landmark_name", "a historical landmark")
 
-        generated_videos = []
-
-        # Loop through each shot and display its info + generation btn
         for i, shot in enumerate(shots):
-            with st.expander(f"🎬 {shot.get('shot_title', f'Shot {i+1}')}", expanded=False):
+            with st.expander(f"🎬 {shot.get('shot_title', f'Shot {i + 1}')}", expanded=False):
                 st.markdown(f"**Visual:** {shot.get('visual_description', 'N/A')}")
                 st.markdown(f"**Narration:** {shot.get('narration', 'N/A')}")
                 st.markdown(f"**Mood:** {shot.get('mood', 'N/A')} | **Transition:** {shot.get('transition', 'N/A')}")
 
-                # Build and show the AI generation prompt
-                full_prompt = f"""
-Cinematic reenactment of {landmark_name}.
-Scene Title: {shot.get('shot_title', '')}
-Visual: {shot.get('visual_description', '')}
-Narration: "{shot.get('narration', '')}"
-Mood: {shot.get('mood', '')}
-The landmark should appear in the background.
-Use dynamic motion, natural lighting, and realistic atmosphere.
-"""
-                st.code(full_prompt, language=None)
+                # Show audio status
+                audio_path = shot.get("audio_path")
+                if audio_path and os.path.exists(audio_path):
+                    st.success("🔊 Narration audio ready")
+                    st.audio(audio_path)
+                else:
+                    st.warning("⚠️ No narration audio generated")
 
-                video_filename = f"shot_{i+1}.mp4"
+                # Generate button
+                video_filename = f"shot_{i + 1}.mp4"
 
-                # Generate the video when the button is clicked
-                if st.button(f"🎞️ Generate Video for Shot {i+1}", key=f"gen_{i}"):
+                if st.button(f"🎞️ Generate Video with Narration for Shot {i + 1}", key=f"gen_{i}"):
                     try:
-                        st.info(f"⏳ Generating video for Shot {i+1}...")
-                        video_path, _ = generate_shot_video(shot, video_filename, landmark_name)
-                        st.success(f"✅ Shot {i+1} ready!")
+                        st.info(f"⏳ Generating video with narration for Shot {i + 1}...")
+                        video_path, audio_used = generate_shot_video(shot, video_filename, landmark_name)
+
+                        if audio_used:
+                            st.success(f"✅ Shot {i + 1} ready with narration!")
+                        else:
+                            st.success(f"✅ Shot {i + 1} ready (no audio)")
+
                         st.video(video_path)
-                        generated_videos.append(video_path)
                     except Exception as e:
                         st.error(f"❌ Failed: {e}")
 
@@ -284,14 +303,14 @@ Use dynamic motion, natural lighting, and realistic atmosphere.
 
             # Generate any missing videos automatically
             for i, shot in enumerate(shots):
-                filename = f"shot_{i+1}.mp4"
+                filename = f"shot_{i + 1}.mp4"
                 if not os.path.exists(filename):
                     try:
-                        st.info(f"🎬 Missing Shot {i+1} — Generating now...")
+                        st.info(f"🎬 Missing Shot {i + 1} — Generating now...")
                         video_path, _ = generate_shot_video(shot, filename, landmark_name)
                         all_videos.append(video_path)
                     except Exception as e:
-                        st.warning(f"⚠️ Failed to generate shot {i+1}: {e}")
+                        st.warning(f"⚠️ Failed to generate shot {i + 1}: {e}")
                 else:
                     all_videos.append(filename)
 
@@ -310,9 +329,6 @@ Use dynamic motion, natural lighting, and realistic atmosphere.
                 st.video(output_path)
             except Exception as e:
                 st.error(f"❌ Failed to combine videos: {e}")
-
-
-
 
 def render_log_tab(final_state, tab):
     with tab:

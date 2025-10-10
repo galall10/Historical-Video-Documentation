@@ -94,27 +94,141 @@ def extract_landmark_name_node(state: AgentState) -> AgentState:
         state["landmark_name"] = "Unknown"
         return state
 
+    landmark_name = "Unknown"
+
     try:
+        # First, try using LLM to extract the landmark name
         llm = initialize_llm()
         prompt = LANDMARK_NAME_EXTRACTION_PROMPT.format(image_analysis=image_analysis)
         messages = [
-            SystemMessage(content="You are a text analysis expert."),
+            SystemMessage(content="You are a text analysis expert specializing in historical landmarks and monuments. Extract the specific landmark name from the description."),
             HumanMessage(content=prompt)
         ]
 
         response = llm.invoke(messages)
-        landmark_name = response.content.strip()
+        llm_extracted_name = response.content.strip()
 
-        state["landmark_name"] = landmark_name if landmark_name else "Unknown"
-        state["messages"].append(f"Landmark name extracted: {landmark_name}")
-        state["progress_log"] += f"Landmark name found: {landmark_name}\n"
+        # Clean up the response
+        llm_extracted_name = llm_extracted_name.strip('"\'').strip()
+
+        print(f"DEBUG: LLM extracted name: '{llm_extracted_name}'")
+        print(f"DEBUG: Image analysis: '{image_analysis[:200]}...'")
+
+        # If LLM gave a specific name, use it
+        if llm_extracted_name and llm_extracted_name.lower() not in ["unknown", "unnamed", "unidentified", "not specified", "could not determine"]:
+            landmark_name = llm_extracted_name
+            state["messages"].append(f"LLM extracted landmark name: {landmark_name}")
+        else:
+            # If LLM couldn't extract, try keyword-based approach
+            state["messages"].append("LLM extraction failed, trying keyword-based approach...")
+            landmark_name = find_similar_landmark_in_db(image_analysis)
+
+        # Use user-provided name as final fallback
+        user_provided_name = state.get("user_provided_landmark_name")
+        if user_provided_name and (landmark_name == "Unknown" or landmark_name.lower() in ["unknown", "unnamed", "unidentified"]):
+            landmark_name = user_provided_name
+            state["messages"].append(f"Using user-provided landmark name: {landmark_name}")
+
+        # Final validation - ensure we have a valid name
+        if not landmark_name or landmark_name.lower() in ["unknown", "unnamed", "unidentified"]:
+            state["messages"].append("Warning: Could not extract landmark name from analysis.")
+            state["progress_log"] += "WARNING: Landmark name extraction inconclusive.\n"
+            landmark_name = "Unknown"
+        else:
+            state["messages"].append(f"Landmark name extracted: {landmark_name}")
+            state["progress_log"] += f"Landmark name found: {landmark_name}\n"
 
     except Exception as e:
         state["messages"].append(f"Landmark name extraction failed: {str(e)}")
         state["progress_log"] += f"ERROR during name extraction: {str(e)}\n"
-        state["landmark_name"] = "Unknown"
+        landmark_name = "Unknown"
 
+    state["landmark_name"] = landmark_name
     return state
+
+
+def find_similar_landmark_in_db(image_analysis: str) -> str:
+    """Find similar landmark in database based on description keywords."""
+    try:
+        from utils.recommendation import load_landmarks
+
+        # Load landmarks data
+        landmarks_df = load_landmarks()
+        if landmarks_df.empty:
+            return "Unknown"
+
+        # Extract keywords from image analysis
+        analysis_lower = image_analysis.lower()
+
+        # Expanded keywords list - English only
+        keywords = [
+            # English landmark names and types
+            "pyramid", "giza", "sphinx", "temple", "luxor", "karnak", "abu simbel",
+            "philae", "valley of kings", "citadel", "qaitbay", "mosque", "muhammad ali",
+            "ibn tulun", "al-azhar", "alexandria", "bibliotheca", "catacombs", "montaza",
+            "citadel of saladin", "cairo tower", "egyptian museum", "khan el-khalili",
+            "old cairo", "coptic cairo", "high dam", "aswan dam", "unfinished obelisk",
+            "nubian museum", "elephantine", "aga khan", "kom ombo", "edfu", "kalabsha",
+            "beit el-wali", "dakka", "maharraqa", "souk", "corniche", "nasser lake",
+            "sehel", "fatimid cemetery", "pompey's pillar", "ras el-tin", "abu al-abbas",
+            "kom el-dikka", "roman theater", "stanley bridge", "opera house",
+            "aquarium", "shallalat gardens", "mamoura beach", "agami", "sidi abdel rahman",
+            "marsa matruh", "cleopatra beach", "almaza bay", "mount sinai",
+            "saint catherine", "sharm el sheikh", "ras muhammad", "dahab", "blue hole",
+            "nuweiba", "taba", "hurghada", "giftun island", "el gouna", "soma bay",
+            "safaga", "quseir", "marsa alam", "shalateen", "halayeb", "zafarana",
+            "siwa oasis", "oracle temple", "cleopatra pool", "shali fortress", "bahariya",
+            "white desert", "black desert", "crystal mountain", "farafra", "dakhla",
+            "kharga", "hibis temple", "qasr village", "mut", "bagawat", "nadura",
+            "labakha", "deir al-hagar", "dush", "roman necropolis", "port said lighthouse",
+            "ismailia museum", "bubastis", "damietta", "natrun", "macarius",
+            "mit ghamr", "tanta", "mansoura", "zagazig", "banha", "qalyub",
+            "shibin", "esna", "khnum temple", "silsila", "sohag", "minya",
+            "assiut", "qena", "paul's monastery", "coloured canyon", "fjord bay",
+            "mahmya", "gawhara palace", "ras el bar", "manzala", "degla",
+            "rayan", "faiyum", "meidum", "hawara", "lahun", "karanis",
+            "madi", "qarun", "bernice", "hormos", "soknopaiou", "tebtunis",
+            # Additional descriptive keywords
+            "ancient", "historical", "pharaonic", "roman", "islamic", "coptic",
+            "museum", "palace", "fortress", "castle", "tower", "bridge",
+            "garden", "park", "beach", "desert", "oasis", "mountain",
+            "valley", "river", "lake", "island", "bay", "sea",
+            "monastery", "church", "cathedral"
+        ]
+
+        # Find matching landmarks with scoring
+        matches = []
+        for _, landmark in landmarks_df.iterrows():
+            landmark_name = landmark.get('name', '').lower()
+            landmark_category = landmark.get('category', '').lower()
+            score = 0
+
+            # Check for exact keyword matches
+            for keyword in keywords:
+                # Direct keyword matching
+                if keyword in landmark_name or keyword in landmark_category:
+                    score += 3  # Higher score for direct matches
+
+                # Check if keyword appears in analysis
+                if keyword in analysis_lower:
+                    score += 1  # Lower score for analysis matches
+
+            if score > 0:
+                matches.append((landmark.get('name', 'Unknown'), score))
+
+        if matches:
+            # Sort by score (highest first) and return the best match
+            matches.sort(key=lambda x: x[1], reverse=True)
+            best_match = matches[0][0]
+            print(f"DEBUG: Keyword-based match found: '{best_match}' with score {matches[0][1]}")
+            return best_match
+
+        print("DEBUG: No keyword matches found in database")
+
+    except Exception as e:
+        print(f"Error finding similar landmark: {e}")
+
+    return "Unknown"
 
 
 def story_telling_node(state: AgentState) -> AgentState:
@@ -284,6 +398,59 @@ Feedback:
     return state
 
 
+def video_generation_node(state: AgentState) -> AgentState:
+    """Generate or retrieve cached video for the landmark story."""
+    state["progress_log"] = state.get("progress_log", "") + "Generating video...\n"
+
+    landmark_name = state.get("landmark_name", "Unknown")
+    story_content = state.get("created_telling_story", "")
+
+    if not story_content:
+        state["messages"].append("❌ No story content available for video generation.")
+        state["progress_log"] += "ERROR: Missing story content.\n"
+        return state
+
+    try:
+        from utils.video_generator import generate_or_get_cached_video
+
+        # Create video generation prompt
+        video_prompt = f"""
+        Create a cinematic educational video about {landmark_name}.
+        The video should be visually stunning and tell the story of this historical landmark.
+        Include scenes of the landmark, historical context, and educational narration.
+        Video style: Documentary, educational, visually appealing.
+        Duration: 30-60 seconds.
+        Quality: High definition.
+
+        Story content: {story_content[:500]}...
+        """
+
+        # Try to get cached video first, or generate new one
+        video_path, was_cached = generate_or_get_cached_video(
+            landmark_name=landmark_name,
+            prompt=video_prompt,
+            story_type="educational",
+            force_regenerate=False
+        )
+
+        if was_cached:
+            state["messages"].append(f"✅ Retrieved cached video for {landmark_name}")
+            state["progress_log"] += f"Video retrieved from cache: {video_path}\n"
+        else:
+            state["messages"].append(f"🎬 Generated new video for {landmark_name}")
+            state["progress_log"] += f"New video generated: {video_path}\n"
+
+        state["generated_video_path"] = video_path
+        state["video_cached"] = was_cached
+
+    except Exception as e:
+        state["messages"].append(f"❌ Video generation failed: {str(e)}")
+        state["progress_log"] += f"ERROR during video generation: {str(e)}\n"
+        state["generated_video_path"] = ""
+
+    return state
+
+
 def output_node(state: AgentState) -> AgentState:
     """Prepare the final structured output of all results."""
     state["progress_log"] = state.get("progress_log", "") + "Preparing final output...\n"
@@ -294,6 +461,8 @@ def output_node(state: AgentState) -> AgentState:
         "video_shots": state.get("shots_description", []),
         "total_shots": len(state.get("shots_description", [])),
         "iterations": state.get("iteration_count", 0),
+        "generated_video": state.get("generated_video_path", ""),
+        "video_cached": state.get("video_cached", False),
         "status": "complete"
     }
 

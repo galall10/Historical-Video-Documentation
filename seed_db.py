@@ -1,6 +1,6 @@
 import sys
 from tqdm import tqdm
-from utils.database import landmarks_collection, connect_to_db
+from utils.database import connect_to_db, get_collections
 
 def get_landmarks():
     """Returns a list of 100 Egyptian landmarks."""
@@ -319,8 +319,9 @@ def get_landmarks():
 
 def seed_database():
     """Seed the database with a comprehensive list of 300 Egyptian landmarks."""
-    # Ensure DB connection is active
-    connect_to_db()
+    # Ensure DB connection is active and get collections
+    landmarks_collection, videos_collection, db = get_collections()
+
     if landmarks_collection is None:
         print("Database connection not established. Aborting seed.")
         return

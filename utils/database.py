@@ -7,7 +7,12 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # --- Configuration ---
-MONGO_URI = os.getenv("MONGO_URI")
+def get_mongo_uri():
+    """Get MongoDB URI, reloading from environment each time."""
+    load_dotenv()  # Reload environment variables
+    return os.getenv("MONGO_URI", "mongodb://localhost:27017/historical_videos")
+
+MONGO_URI = get_mongo_uri()
 DB_NAME = "landmark_db"
 LANDMARKS_COLLECTION_NAME = "landmarks"
 VIDEOS_COLLECTION_NAME = "cached_videos"
@@ -16,52 +21,70 @@ VIDEOS_COLLECTION_NAME = "cached_videos"
 client = None
 db = None
 landmarks_collection = None
-videos_collection = None
 
 def connect_to_db():
     """Establishes a connection to MongoDB and returns collections."""
     global client, db, landmarks_collection, videos_collection
 
-    if not MONGO_URI:
+    # Get fresh URI each time
+    current_uri = get_mongo_uri()
+
+    if not current_uri:
         print("ERROR: MONGO_URI is not set in the .env file.")
-        print("Please make sure your .env file contains: MONGO_URI=mongodb://localhost:27017")
+        print("Please make sure your .env file contains: MONGO_URI=mongodb://localhost:27017/historical_videos")
         return None, None, None
 
     try:
-        print(f"Attempting to connect to MongoDB at {MONGO_URI}...")
-        client = MongoClient(
-            MONGO_URI,
-            serverSelectionTimeoutMS=5000,  # 5 seconds timeout
-            connectTimeoutMS=30000,         # 30 seconds connection timeout
-            socketTimeoutMS=None,           # No timeout for operations
-            connect=False                   # Defer connection until first operation
-        )
-        client.admin.command('ismaster')
-        print("Successfully connected to MongoDB Atlas!")
+        print(f"Attempting to connect to MongoDB at {current_uri}...")
 
+        # Close existing connection if any
+        if client:
+            try:
+                client.close()
+            except:
+                pass
+
+        # Create new connection
+        client = MongoClient(current_uri)
         db = client[DB_NAME]
+
+        # Test the connection
+        client.admin.command('ping')
+        print(f"Successfully connected to MongoDB!")
+
+        # Get collections
         landmarks_collection = db[LANDMARKS_COLLECTION_NAME]
         videos_collection = db[VIDEOS_COLLECTION_NAME]
-        print(f"Database '{DB_NAME}' and collections '{LANDMARKS_COLLECTION_NAME}', '{VIDEOS_COLLECTION_NAME}' are ready.")
+
+        # Create collections if they don't exist
+        try:
+            db.create_collection(LANDMARKS_COLLECTION_NAME)
+            db.create_collection(VIDEOS_COLLECTION_NAME)
+            print(f"Database '{DB_NAME}' and collections '{LANDMARKS_COLLECTION_NAME}', '{VIDEOS_COLLECTION_NAME}' are ready.")
+        except:
+            print(f"Collections already exist in database '{DB_NAME}'.")
 
         return landmarks_collection, videos_collection, db
 
-    except (ConnectionFailure, ConfigurationError) as e:
-        print(f"Database connection failed: {e}")
-        print("\nPlease check the following:")
-        print("1. Your internet connection.")
-        print("2. The MONGO_URI in your .env file is correct.")
-        print("3. Your current IP address is whitelisted in MongoDB Atlas Network Access.")
-        print("4. Your system's DNS settings are correct (try using 8.8.8.8).")
-        client = None
-        db = None
-        landmarks_collection = None
-        videos_collection = None
+    except ConnectionFailure as e:
+        print(f"Failed to connect to MongoDB: {e}")
+        print("Please check your internet connection and MongoDB server status.")
+        landmarks_collection, videos_collection, db = None, None, None
+        return None, None, None
+    except ConfigurationError as e:
+        print(f"MongoDB configuration error: {e}")
+        landmarks_collection, videos_collection, db = None, None, None
+        return None, None, None
+    except Exception as e:
+        print(f"Unexpected error connecting to MongoDB: {e}")
+        landmarks_collection, videos_collection, db = None, None, None
         return None, None, None
 
 
 def get_collections():
     """Get current collections, connecting if necessary."""
+    global landmarks_collection, videos_collection, db
+
     if landmarks_collection is None or videos_collection is None:
         print("Reconnecting to database...")
         connect_to_db()
@@ -147,6 +170,7 @@ def delete_cached_video(landmark_name, story_type):
 
 def get_video_cache_stats():
     """Get statistics about the video cache."""
+    landmarks_collection, videos_collection, db = get_collections()
     if videos_collection is None:
         return None
 

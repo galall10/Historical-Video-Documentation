@@ -120,18 +120,32 @@ OUTPUT EXAMPLE:
 
 # 4. LANDMARK NAME EXTRACTION PROMPT
 LANDMARK_NAME_EXTRACTION_PROMPT = """
-You are a text analysis expert. Your task is to extract the name of the landmark from the provided text.
+You are a text analysis expert specializing in historical landmarks and monuments.
 
 ANALYSIS TEXT:
 {image_analysis}
 
 TASK:
-- Read the text and identify the name of the historical landmark.
-- Return ONLY the name of the landmark.
+- Carefully read the analysis text and identify the name of the historical landmark or monument mentioned.
+- Look for: building names, monument names, site names, or any specific historical structures.
+- Return ONLY the landmark name in English if possible, or the most specific name mentioned.
+- If multiple landmarks are mentioned, choose the primary/main one.
 - If no specific landmark name is found, return "Unknown".
 
-EXAMPLE:
-- Input: "The Eiffel Tower is a wrought-iron lattice tower on the Champ de Mars in Paris, France."
-- Output: "Eiffel Tower"
+IMPORTANT:
+- Return just the name, nothing else
+- Be specific: prefer "Great Pyramid of Giza" over just "pyramid"
+- If the text mentions "the pyramid" or similar generic terms, look for more context
+- Check for Arabic names and transliterate them to English if needed
+
+EXAMPLES:
+- Input: "This is the Great Pyramid of Giza in Egypt, built by Pharaoh Khufu..."
+- Output: "Great Pyramid of Giza"
+
+- Input: "The image shows a large ancient pyramid structure..."
+- Output: "Unknown"
+
+- Input: "هرم سقارة في مصر يُعد من أقدم الأهرامات في التاريخ..."
+- Output: "Saqqara Pyramid"
 """
 

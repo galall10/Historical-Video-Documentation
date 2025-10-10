@@ -10,3 +10,7 @@ openai
 langchain-community
 dashscope
 pymongo
+edge-tts
+moviepy
+Pillow
+google-genai

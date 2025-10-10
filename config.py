@@ -36,14 +36,14 @@ def validate_config():
     }
 
     for key, exists in keys_status.items():
-        print(f"{key}: {'✅ Found' if exists else '⚠️ Missing'}")
+        print(f"{key}: {'Found' if exists else 'Missing'}")
 
     if not any(keys_status.values()):
-        print("❌ No valid API keys found — please update your .env file.")
+        print("No valid API keys found — please update your .env file.")
         return False
 
-    print(f"\n🎬 Active Video Model: {VIDEO_MODEL}")
-    print(f"🧠 Active LLM Model: {GEMINI_MODEL}")
+    print(f"\nActive Video Model: {VIDEO_MODEL}")
+    print(f"Active LLM Model: {GEMINI_MODEL}")
     print("-----------------------------\n")
     return True
 

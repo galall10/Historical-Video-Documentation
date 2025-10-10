@@ -8,6 +8,8 @@ load_dotenv()
 GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY", "")
 GEMINI_API_KEY = GOOGLE_API_KEY or os.getenv("GEMINI_API_KEY", "")
 DASHSCOPE_API_KEY = os.getenv("DASHSCOPE_API_KEY", "")
+WAN_API_KEY = os.getenv("WAN_API_KEY", "")
+MONGO_URI = os.getenv("MONGO_URI", "mongodb://localhost:27017/")
 
 # Expose Google API key for genai client (required by google-genai SDK)
 if GOOGLE_API_KEY:
@@ -29,17 +31,19 @@ def validate_config():
     keys_status = {
         "Google / Gemini API Key": bool(GOOGLE_API_KEY),
         "DashScope API Key": bool(DASHSCOPE_API_KEY),
+        "WAN API Key": bool(WAN_API_KEY),
+        "MongoDB URI": bool(MONGO_URI),
     }
 
     for key, exists in keys_status.items():
-        print(f"{key}: {'✅ Found' if exists else '⚠️ Missing'}")
+        print(f"{key}: {'Found' if exists else 'Missing'}")
 
     if not any(keys_status.values()):
-        print("❌ No valid API keys found — please update your .env file.")
+        print("No valid API keys found — please update your .env file.")
         return False
 
-    print(f"\n🎬 Active Video Model: {VIDEO_MODEL}")
-    print(f"🧠 Active LLM Model: {GEMINI_MODEL}")
+    print(f"\nActive Video Model: {VIDEO_MODEL}")
+    print(f"Active LLM Model: {GEMINI_MODEL}")
     print("-----------------------------\n")
     return True
 

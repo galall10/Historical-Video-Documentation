@@ -1,0 +1,16 @@
+streamlit
+python-dotenv
+pandas
+haversine
+langgraph
+langchain-google-genai
+google-generativeai
+langchain-core
+openai
+langchain-community
+dashscope
+pymongo
+edge-tts
+moviepy
+Pillow
+google-genai

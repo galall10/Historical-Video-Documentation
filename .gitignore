@@ -17,3 +17,21 @@ logs/
 # IDE configs
 .vscode/
 .idea/
+
+# Generated media files
+narrations/
+*.mp3
+*.mp4
+*.avi
+*.mov
+*.mkv
+
+# Database files
+mongodb.msi
+*.db
+*.sqlite
+
+# Environment variables
+.env
+.env.local
+.env.*.local

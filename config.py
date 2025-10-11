@@ -18,7 +18,7 @@ if GOOGLE_API_KEY:
 # Model Configuration
 GEMINI_MODEL = "gemini-2.0-flash"
 WAN_MODEL = "wan2.1-t2v-turbo"        # Alibaba DashScope
-VEO_MODEL = "veo-3.0-generate-001"    # Google Veo
+VEO_MODEL = "veo-2.0-generate-001"    # Google Veo
 
 VIDEO_MODEL = VEO_MODEL
 

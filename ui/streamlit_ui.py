@@ -22,7 +22,7 @@ from utils.recommendation import load_landmarks, get_recommendations
 import streamlit as st
 from slugify import slugify
 
-# MoviePy is optional: keep features disabled if incompatible (Python 3.13)
+# keep features disabled if incompatible (Python 3.13)
 MOVIEPY_AVAILABLE = True
 try:
     from moviepy.editor import concatenate_videoclips, VideoFileClip, AudioFileClip
@@ -214,7 +214,6 @@ def process_generation(uploaded_file, refinement_input, landmark_name_input, api
         status.empty()
 
 
-# --- Video shot generation helpers (unified) --- #
 def _build_shot_prompt(shot, landmark):
     title = shot.get("shot_title", f"Shot {shot.get('shot_number', '0')}")
     desc = shot.get("visual_description", "No visual description provided.")
@@ -227,7 +226,6 @@ Mood: {mood}
 Include the landmark prominently in the frame.
 Dynamic camera motion, realistic atmosphere, natural lighting.
 """.strip()
-
 
 def _merge_audio_with_moviepy(video_path, audio_path, out_path):
     try:
@@ -497,7 +495,6 @@ def render_log_tab(final_state, tab):
         st.text_area("Processing Log", final_state.get("progress_log", ""), height=300, disabled=True)
 
 
-# Results entrypoint that wires tabs (keeps expanded tabs list from 'right' branch)
 def render_results():
     if not (st.session_state.processing_complete and st.session_state.final_state):
         return

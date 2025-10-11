@@ -11,10 +11,6 @@ def generate_video_with_veo(
     poll_interval: int = 10,
     timeout_minutes: int = 10
 ):
-    """
-    Generates a cinematic video using Google's Veo model (veo-3.0-generate-001).
-    Saves the final video to `output_path` and returns its path.
-    """
 
     api_key = os.getenv("GOOGLE_API_KEY")
     if not api_key:
@@ -26,7 +22,6 @@ def generate_video_with_veo(
 
     # Start Veo job
     operation = client.models.generate_videos(model=VEO_MODEL, prompt=prompt)
-    print(f"Operation ID: {operation.name}")
 
     elapsed = 0
     timeout = timeout_minutes * 60
@@ -38,7 +33,7 @@ def generate_video_with_veo(
         print(f"⏳ Waiting... {elapsed}s")
         time.sleep(poll_interval)
         elapsed += poll_interval
-        operation = client.operations.get(name=operation.name)
+        operation = client.operations.get(operation)
 
     if not getattr(operation.response, "generated_videos", None):
         raise RuntimeError("❌ No video generated. Maybe Veo filtered your prompt.")
@@ -61,19 +56,7 @@ def generate_or_get_cached_video(
     size: str = "832*480",
     force_regenerate: bool = False
 ):
-    """
-    Generate a video or retrieve from cache if it exists.
 
-    Args:
-        landmark_name: Name of the landmark
-        prompt: Video generation prompt
-        story_type: Type of story (e.g., "historical", "cultural", "modern")
-        size: Video size
-        force_regenerate: If True, generate new video even if cached version exists
-
-    Returns:
-        tuple: (video_path, was_cached)
-    """
 
     print(f"🔍 Checking cache for video: {landmark_name} ({story_type})")
 
